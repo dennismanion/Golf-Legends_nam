@@ -125,6 +125,22 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- Firebase Configuration ---
+        // IMPORTANT: Replace this with your actual Firebase project configuration.
+        // You can find this in your Firebase console under Project settings -> General.
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAuErizAOC5FCAVyNb-KfAlmqpoHqhflHQ",
+  authDomain: "interactive-golf-scorecard-app.firebaseapp.com",
+  projectId: "interactive-golf-scorecard-app",
+  storageBucket: "interactive-golf-scorecard-app.firebasestorage.app",
+  messagingSenderId: "301146578542",
+  appId: "1:301146578542:web:1e7515a3ab3c84fd5c507f",
+  measurementId: "G-48RGNE7JVN"
+};
+        const appId = firebaseConfig.appId; // Use the appId from your config
+        const initialAuthToken = null; // No initial token for a local environment
+
         // --- Data Definitions ---
         let roundsData = {
             1: {
@@ -210,11 +226,10 @@
         let db;
         let auth;
         let currentUser;
-        let appId;
         let currentRound = 1;
         let playersData = [];
+        let isFetching = false;
         let unsubscribeFromSnapshot = null;
-        let isAuthReady = false;
 
         // --- Utility Functions ---
         function calculateInScore(scores) {
@@ -232,6 +247,9 @@
         
         /**
          * Calculates Stableford points based on gross score, par, and handicap strokes.
+         * This function now uses the updated scoring system as requested by the user.
+         * A net par is 2 points, with +1 point for each stroke under par and -1 point for each stroke over par.
+         * The score cannot drop below 0 points.
          * @param {number} grossScore The player's raw score for the hole.
          * @param {number} holePar The par for the hole.
          * @param {number} handicapStrokes The number of handicap strokes the player receives for this hole.
@@ -244,8 +262,10 @@
             const netScore = grossScore - (handicapStrokes || 0);
             const scoreToPar = netScore - holePar;
 
+            // New scoring logic: 2 points for net par, +1 per stroke under, -1 per stroke over.
             let points = 2 - scoreToPar;
             
+            // Ensure points do not drop below zero
             return Math.max(0, points);
         }
         function calculateInStableford(stablefordPoints) {
@@ -272,65 +292,49 @@
 
         // --- Firebase Initialization and Auth ---
         const initializeFirebase = async () => {
-            let firebaseConfig;
             try {
-                // Safely parse the firebase config.
-                if (typeof __firebase_config === 'string' && __firebase_config.length > 0) {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                } else {
-                    throw new Error("Firebase configuration is not available.");
+                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    console.error("Firebase config is not set. Scores will not be saved.");
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-4">Warning: Firebase config is not set. Scores will not be saved.</div>';
+                    // We can still render the scorecard with default data
+                    renderPage('scorecard');
+                    return;
                 }
-
-                // Initialize the app.
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
 
-                // Use onAuthStateChanged to handle authentication state changes reliably
-                onAuthStateChanged(auth, async (user) => {
+                onAuthStateChanged(auth, (user) => {
                     if (user) {
                         currentUser = user;
                         document.getElementById('user-id-display').textContent = `User ID: ${currentUser.uid}`;
                         console.log("User authenticated:", currentUser.uid);
-                        isAuthReady = true; 
-                        
-                        // Fetch data only after auth is ready
                         if (document.getElementById('scorecard-btn').classList.contains('bg-gray-700')) {
                              fetchDataForRound(currentRound);
                         }
                     } else {
-                        console.log("No user is signed in, signing in...");
-                        // If no user is signed in, sign in with the custom token or anonymously
-                        if (initialAuthToken) {
-                            try {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } catch (error) {
-                                console.error("Error signing in with custom token:", error);
-                                // Fallback to anonymous sign-in if custom token fails
-                                await signInAnonymously(auth);
-                            }
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        console.log("No user is signed in.");
+                        document.getElementById('user-id-display').textContent = 'User ID: Not authenticated';
                     }
                 });
             } catch (e) {
                 console.error("Error initializing Firebase:", e);
                 const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-4">Error: Database connection failed. Please check your configuration.</div>';
-                isAuthReady = false; 
+                contentDiv.innerHTML += '<div class="text-center text-red-600 font-bold p-4">Error connecting to database. Scores will not be saved.</div>';
             }
         };
 
         // --- Data Fetching and Rendering ---
         const fetchDataForRound = (roundNumber) => {
-            if (!isAuthReady || !db || !currentUser || !appId) {
-                console.log("Firebase or auth not ready. Cannot fetch data.");
-                return;
-            }
+            if (isFetching) return;
+            isFetching = true;
             
             // Unsubscribe from previous round's snapshot listener if it exists
             if (unsubscribeFromSnapshot) {
@@ -346,37 +350,44 @@
             }));
             renderScorecard();
             
-            const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
-            const q = collection(db, collectionPath);
-            
-            unsubscribeFromSnapshot = onSnapshot(q, (querySnapshot) => {
-                const fetchedEntries = {};
-                querySnapshot.forEach((doc) => {
-                    fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
-                });
+            if (db && currentUser && appId) {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
+                const q = collection(db, collectionPath);
+                
+                unsubscribeFromSnapshot = onSnapshot(q, (querySnapshot) => {
+                    const fetchedEntries = {};
+                    querySnapshot.forEach((doc) => {
+                        fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
+                    });
 
-                playersData = roundsData[roundNumber].players.map(player => {
-                    const fetchedPlayer = fetchedEntries[player.name];
-                    return fetchedPlayer ? {
-                        ...player,
-                        scores: fetchedPlayer.scores || Array(18).fill(''),
-                        threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
-                        stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
-                    } : {
-                        ...player,
-                        scores: Array(18).fill(''),
-                        threePutts: Array(18).fill(''),
-                        stablefordPoints: Array(18).fill('')
-                    };
+                    playersData = roundsData[roundNumber].players.map(player => {
+                        const fetchedPlayer = fetchedEntries[player.name];
+                        return fetchedPlayer ? {
+                            ...player,
+                            scores: fetchedPlayer.scores || Array(18).fill(''),
+                            threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
+                            stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
+                        } : {
+                            ...player,
+                            scores: Array(18).fill(''),
+                            threePutts: Array(18).fill(''),
+                            stablefordPoints: Array(18).fill('')
+                        };
+                    });
+                    renderScorecard();
+                    console.log("Data fetched and scorecard rendered.");
+                    isFetching = false;
+                }, (e) => {
+                    console.error('Error fetching data:', e);
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch real-time data. Please check your connection.</div>';
+                    isFetching = false;
+                    unsubscribeFromSnapshot();
                 });
-                renderScorecard();
-                console.log("Data fetched and scorecard rendered.");
-            }, (e) => {
-                console.error('Error fetching data:', e);
-                const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch real-time data. Please check your connection.</div>';
-                unsubscribeFromSnapshot();
-            });
+            } else {
+                isFetching = false;
+                console.log("Firebase not ready. Displaying default scores.");
+            }
         };
 
         const renderScorecard = () => {
@@ -585,15 +596,16 @@
 
         // --- Event Handlers ---
         window.handleScoreChange = async (e) => {
-            // Check if authentication is ready before proceeding
-            if (!isAuthReady) {
+            const { playerName, scoreIndex, scoreType } = e.target.dataset;
+            const sIndex = parseInt(scoreIndex);
+
+            if (!db || !currentUser || !appId) {
+                console.error("Database connection not ready. Cannot save.");
                 showStatusMessage('Database not ready. Score not saved.', 'error');
                 return;
             }
 
-            const { playerName, scoreIndex, scoreType } = e.target.dataset;
-            const sIndex = parseInt(scoreIndex);
-
+            // Find the player and round details
             const playerToUpdate = playersData.find(p => p.name === playerName);
             const roundDetails = roundsData[currentRound];
             
@@ -613,12 +625,15 @@
                 const grossScore = parseInt(e.target.value) || '';
                 playerToUpdate.scores[sIndex] = grossScore;
                 
+                // Stableford calculation
                 const holePar = roundDetails.holes[sIndex].par;
                 const holeHCap = roundDetails.holes[sIndex].hcap;
-                const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap);
+                const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap); // Use a whole number for stroke allocation
                 
                 let handicapStrokes = 0;
                 
+                // This logic correctly distributes handicap strokes for whole number handicaps.
+                // It assigns one stroke per hole up to 18, and then extra strokes on the hardest holes.
                 const strokesPerRound = Math.floor(dailyHCapRounded / 18);
                 const remainingStrokes = dailyHCapRounded % 18;
                 
@@ -627,9 +642,21 @@
                 } else {
                     handicapStrokes = strokesPerRound;
                 }
+
+                // Log the calculation for debugging
+                console.log('--- Stableford Calculation for ' + playerName + ' on Hole ' + (sIndex + 1) + ' ---');
+                console.log('Daily Handicap (Rounded):', dailyHCapRounded);
+                console.log('Hole Par:', holePar);
+                console.log('Hole Handicap:', holeHCap);
+                console.log('Gross Score:', grossScore);
+                console.log('Handicap Strokes on this hole:', handicapStrokes);
+                console.log('Net Score:', grossScore - handicapStrokes);
                 
                 const stablefordPoints = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
                 playerToUpdate.stablefordPoints[sIndex] = stablefordPoints;
+                
+                console.log('Stableford Points Awarded:', stablefordPoints);
+                console.log('--- End of Calculation ---');
 
                 dataToMerge.scores = playerToUpdate.scores;
                 dataToMerge.stablefordPoints = playerToUpdate.stablefordPoints;
@@ -657,17 +684,20 @@
             const newParOrHcap = parseInt(e.target.value);
             const index = parseInt(holeIndex);
             
+            // Check for valid input
             if (isNaN(newParOrHcap)) {
                 e.target.value = '';
                 return;
             }
 
+            // Update the global roundsData object
             if (holeType === 'par') {
                 roundsData[currentRound].holes[index].par = newParOrHcap;
             } else if (holeType === 'hcap') {
                 roundsData[currentRound].holes[index].hcap = newParOrHcap;
             }
 
+            // Re-render the scorecard to update all totals
             renderScorecard();
         };
 
