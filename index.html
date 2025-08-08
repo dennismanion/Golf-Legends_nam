@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 Vietnam Golf Legends Scorecard</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Using the public image URL you provided */
+            background-image: url('https://i0.wp.com/mylsmga.org/wp-content/uploads/2018/02/eOZbIG4-free-golf-wallpaper.jpg?ssl=1');
+            background-color: #2D3748; /* Dark gray fallback */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+        /* Frosted glass effect for the main container */
+        #app-container {
+            backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(209, 213, 219, 0.5); /* gray-300 with opacity */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.7); /* gray-500 with opacity */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(75, 85, 99, 0.9); /* gray-600 with opacity */
+        }
+        /* Lock position for sticky elements */
+        .sticky-col-header {
+            left: 0;
+            position: sticky;
+            z-index: 10;
+        }
+        .sticky-col-header.bg-inherit {
+            /* To make sure the sticky cell matches the row background */
+            background-color: inherit;
+        }
+        /* Style for the checkbox */
+        .three-putt-checkbox {
+            width: 1rem;
+            height: 1rem;
+            accent-color: #ef4444; /* red-500 */
+        }
+        /* Style for editable table cells */
+        .editable-cell {
+            min-width: 8rem;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .editable-cell:focus {
+            outline: none;
+            border-color: #2563eb; /* blue-600 */
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        /* Style for par and hcap input fields */
+        .hole-input {
+            width: 3rem;
+            text-align: center;
+            background-color: transparent;
+            border: none;
+            outline: none;
+            font-weight: medium;
+            font-size: 0.875rem; /* text-sm */
+            color: #fff;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.2s;
+        }
+        .hole-input:focus {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div id="app-container" class="w-full max-w-7xl mx-auto rounded-2xl shadow-xl border border-gray-300 p-6 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">2025 Vietnam Golf Legends</h1>
+            <p class="text-xl mt-2 text-gray-700">Official Scoring Sheet</p>
+            <p id="user-id-display" class="text-xs mt-2 text-gray-600"></p>
+        </header>
+
+        <!-- Round and Page Navigation -->
+        <nav class="flex flex-wrap justify-center space-x-2 md:space-x-4 mb-6">
+            <button id="scorecard-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-700 text-white shadow-lg">Scorecard</button>
+            <button id="leaderboards-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Leaderboards</button>
+            <button id="form-guide-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Form Guide</button>
+            <button id="rules-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Rules of Engagement</button>
+            <button id="groups-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Playing Groups</button>
+        </nav>
+        
+        <!-- Main content area -->
+        <div id="content">
+            <!-- This is where the scorecard or other pages will be rendered -->
+        </div>
+
+        <!-- Submission Status Modal -->
+        <div id="status-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full">
+                <p id="status-message" class="text-lg font-semibold text-gray-800 mb-4"></p>
+                <button onclick="document.getElementById('status-modal').classList.add('hidden')" class="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        // IMPORTANT: Replace this with your actual Firebase project configuration.
+        // You can find this in your Firebase console under Project settings -> General.
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        const appId = firebaseConfig.appId; // Use the appId from your config
+        const initialAuthToken = null; // No initial token for a local environment
+
+        // --- Data Definitions ---
+        let roundsData = {
+            1: {
+                course: 'Ba Na Hills', tees: 'white tees', slope: 133, scratch: 69.6, par: 72,
+                holes: [
+                    {par: 4, hcap: 9}, {par: 4, hcap: 11}, {par: 5, hcap: 3}, {par: 3, hcap: 15}, {par: 4, hcap: 1}, {par: 4, hcap: 13}, {par: 4, hcap: 7}, {par: 3, hcap: 17}, {par: 5, hcap: 5},
+                    {par: 4, hcap: 14}, {par: 4, hcap: 16}, {par: 3, hcap: 18}, {par: 5, hcap: 4}, {par: 4, hcap: 2}, {par: 4, hcap: 10}, {par: 3, hcap: 12}, {par: 4, hcap: 6}, {par: 5, hcap: 8}
+                ],
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.55 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.27 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.49 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 28.20 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.54 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 13.42 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 30.39 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.70 }
+                ]
+            },
+            2: {
+                course: 'Montgomerie Golf Links', tees: 'blue tees', slope: 135, scratch: 72, par: 72,
+                holes: [
+                    {par: 4, hcap: 9}, {par: 4, hcap: 11}, {par: 5, hcap: 3}, {par: 3, hcap: 15}, {par: 4, hcap: 1}, {par: 4, hcap: 13}, {par: 4, hcap: 7}, {par: 3, hcap: 17}, {par: 5, hcap: 5},
+                    {par: 4, hcap: 14}, {par: 4, hcap: 16}, {par: 3, hcap: 18}, {par: 5, hcap: 4}, {par: 4, hcap: 2}, {par: 4, hcap: 10}, {par: 3, hcap: 12}, {par: 4, hcap: 6}, {par: 5, hcap: 8}
+                ],
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.88 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.54 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.88 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 28.66 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.66 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 13.66 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 30.88 }, { name: 'Brad', aguHCap: '31', dailyHCap: 32.21 }
+                ]
+            },
+            3: {
+                course: 'Hoiana Shores', tees: 'black tees', slope: 140, scratch: 73, par: 72,
+                holes: [
+                    {par: 4, hcap: 9}, {par: 4, hcap: 11}, {par: 5, hcap: 3}, {par: 3, hcap: 15}, {par: 4, hcap: 1}, {par: 4, hcap: 13}, {par: 4, hcap: 7}, {par: 3, hcap: 17}, {par: 5, hcap: 5},
+                    {par: 4, hcap: 14}, {par: 4, hcap: 16}, {par: 3, hcap: 18}, {par: 5, hcap: 4}, {par: 4, hcap: 2}, {par: 4, hcap: 10}, {par: 3, hcap: 12}, {par: 4, hcap: 6}, {par: 5, hcap: 8}
+                ],
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 20.12 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 17.01 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 24.53 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 29.11 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 6.04 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 14.28 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 31.25 }, { name: 'Brad', aguHCap: '31', dailyHCap: 32.88 }
+                ]
+            },
+            4: {
+                course: 'BRG Da Nang Golf Resort Nicklaus Course', tees: 'yellow tees', slope: 130, scratch: 70, par: 72,
+                holes: [
+                    {par: 4, hcap: 9}, {par: 4, hcap: 11}, {par: 5, hcap: 3}, {par: 3, hcap: 15}, {par: 4, hcap: 1}, {par: 4, hcap: 13}, {par: 4, hcap: 7}, {par: 3, hcap: 17}, {par: 5, hcap: 5},
+                    {par: 4, hcap: 14}, {par: 4, hcap: 16}, {par: 3, hcap: 18}, {par: 5, hcap: 4}, {par: 4, hcap: 2}, {par: 4, hcap: 10}, {par: 3, hcap: 12}, {par: 4, hcap: 6}, {par: 5, hcap: 8}
+                ],
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.15 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.09 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 22.95 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 27.88 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.21 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 12.99 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 29.98 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.12 }
+                ]
+            }
+        };
+
+        const formGuideData = {
+            'Ben': { barrier: 1, form: '3461', odds: '$8.00', movement: 'up', comment: '2024 winner returns despite testing positive to Voltaren for another edition of the Cup. The new Taylormade driver and the inside barrier is sure to benefit. Manager has learnt from the previous overseas race in book, a trip for a short midweek spell and avoid the crow banned stimulant-Long island iced Tea. Strong chance.' },
+            'Ian': { barrier: 2, form: 'x242', odds: '$5.00', movement: 'up', comment: '2024 Hunter Valley runner up is always a consistent performer on tour and regular trackwork will only strengthen his claims. Overseas track is in Tiger’s favour although recent East Asian activities could distract from a solid performance, definite threat.' },
+            'Peter': { barrier: 3, form: '1275', odds: '$15.00', movement: 'up', comment: 'Peb comes into the cup with plenty of runs and sure to benefit with the return of his old stablemate to provide astute guidance. Previous Cup winner and International experience will assist in his claim. Will get the luck in running so look for him to be flashing home late.' },
+            'Neale': { barrier: 4, form: 'x445', odds: '$20.00', movement: 'down', comment: 'Dark horse who swooped late in the Hunter to snatch a shirt before being spooked by another race. Blinkers added to keep his mind on the job but Macau could prove another distraction in 2025. Each way.' },
+            'Neal': { barrier: 5, form: '1116', odds: '$4.00', movement: 'down', comment: 'Proven strong stayer winning 6 cups, prepared to overlook 2024 run where he didn’t handle conditions and take on trust. Winner of previous overseas cup is 2015 but questionable on a sandy track and getting to the bus on time is a risk, winkers added to keep him focused. Choice of the putter by the trainer will be crucial but the one to beat again.' },
+            'Dennis': { barrier: 6, form: '5x2x', odds: '$6.00', movement: 'up', comment: 'The old grey war horse has returned from a long spell to have a run with Peb and keep him on track(maybe), Tropical weather, copious amount of krill, good track and plenty of Singha all suggest a return to prior form in 2025. Plenty of experience searching for balls & tees in the jungle will suit his chances. Distance a query but forward showing expected.' },
+            'Tony': { barrier: 7, form: '20', odds: '$20.00', movement: 'question', comment: 'First emergency-maiden starter with no Australian or international form but from the strong Rockhampton stable and favourable handicap. Watch the market.' },
+            'Brad': { barrier: 8, form: '6', odds: '$33.00', movement: 'question', comment: 'Second emergency-with one Australian hit out on Gold Coast but no international form. Likely to be a non nocturnal touring partner for Plodder but, watch out for local Triads so jockey may require tongue tie. Keep safe.' },
+        };
+
+        const prizesData = {
+            1: { course: 'Ba Na Hills', pinShot1: 8, pinShot2: 16, longDrive: 5, worstShot: '' },
+            2: { course: 'Montgomerie Golf Links', pinShot1: 5, pinShot2: 11, longDrive: 6, worstShot: '' },
+            3: { course: 'Hoiana Shores', pinShot1: 8, pinShot2: 14, longDrive: 7, worstShot: '' },
+            4: { course: 'BRG Da Nang Golf Resort Nicklaus Course', pinShot1: 4, pinShot2: 16, longDrive: 13, worstShot: '' }
+        };
+
+        const playingGroupsData = {
+            1: { grouping: 'Handicap order', groups: ['1+8', '2+7', '3+6', '4+5'] },
+            2: { grouping: 'Day 1 results', groups: ['1+8', '2+7', '3+6', '4+5'] },
+            3: { grouping: 'Handicaps-split up teams', groups: ['3+5', '4+7', '2+8', '1+6'] },
+            4: { grouping: 'Day 3 Order of merit', groups: ['1+2', '3+4', '5+6', '7+8'] }
+        };
+
+        // --- Global Variables ---
+        let db;
+        let auth;
+        let currentUser;
+        let currentRound = 1;
+        let playersData = [];
+        let isFetching = false;
+        let unsubscribeFromSnapshot = null;
+
+        // --- Utility Functions ---
+        function calculateInScore(scores) {
+            return scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateOutScore(scores) {
+            return scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateTotalScore(scores) {
+            return scores.reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateTotalThreePutts(threePutts) {
+            return threePutts.reduce((sum, putts) => sum + (parseInt(putts) || 0), 0);
+        }
+        
+        /**
+         * Calculates Stableford points based on gross score, par, and handicap strokes.
+         * This function now uses the updated scoring system as requested by the user.
+         * A net par is 2 points, with +1 point for each stroke under par and -1 point for each stroke over par.
+         * The score cannot drop below 0 points.
+         * @param {number} grossScore The player's raw score for the hole.
+         * @param {number} holePar The par for the hole.
+         * @param {number} handicapStrokes The number of handicap strokes the player receives for this hole.
+         * @returns {number} The Stableford points for the hole.
+         */
+        function calculateStablefordPoints(grossScore, holePar, handicapStrokes) {
+            if (!grossScore || !holePar) {
+                return 0;
+            }
+            const netScore = grossScore - (handicapStrokes || 0);
+            const scoreToPar = netScore - holePar;
+
+            // New scoring logic: 2 points for net par, +1 per stroke under, -1 per stroke over.
+            let points = 2 - scoreToPar;
+            
+            // Ensure points do not drop below zero
+            return Math.max(0, points);
+        }
+        function calculateInStableford(stablefordPoints) {
+            return stablefordPoints.slice(0, 9).reduce((sum, points) => sum + (parseInt(points) || 0), 0);
+        }
+        function calculateOutStableford(stablefordPoints) {
+            return stablefordPoints.slice(9, 18).reduce((sum, points) => sum + (parseInt(points) || 0), 0);
+        }
+        function calculateTotalStableford(stablefordPoints) {
+            return stablefordPoints.reduce((sum, points) => sum + (parseInt(points) || 0), 0);
+        }
+
+        function showStatusMessage(message, type) {
+            const modal = document.getElementById('status-modal');
+            const msgElement = document.getElementById('status-message');
+            msgElement.textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 3000);
+        }
+
+        // --- Firebase Initialization and Auth ---
+        const initializeFirebase = async () => {
+            try {
+                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    console.error("Firebase config is not set. Scores will not be saved.");
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-4">Warning: Firebase config is not set. Scores will not be saved.</div>';
+                    // We can still render the scorecard with default data
+                    renderPage('scorecard');
+                    return;
+                }
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        document.getElementById('user-id-display').textContent = `User ID: ${currentUser.uid}`;
+                        console.log("User authenticated:", currentUser.uid);
+                        if (document.getElementById('scorecard-btn').classList.contains('bg-gray-700')) {
+                             fetchDataForRound(currentRound);
+                        }
+                    } else {
+                        console.log("No user is signed in.");
+                        document.getElementById('user-id-display').textContent = 'User ID: Not authenticated';
+                    }
+                });
+            } catch (e) {
+                console.error("Error initializing Firebase:", e);
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML += '<div class="text-center text-red-600 font-bold p-4">Error connecting to database. Scores will not be saved.</div>';
+            }
+        };
+
+        // --- Data Fetching and Rendering ---
+        const fetchDataForRound = (roundNumber) => {
+            if (isFetching) return;
+            isFetching = true;
+            
+            // Unsubscribe from previous round's snapshot listener if it exists
+            if (unsubscribeFromSnapshot) {
+                unsubscribeFromSnapshot();
+            }
+            
+            // Render the scorecard with default data first
+            playersData = roundsData[roundNumber].players.map(p => ({
+                ...p,
+                scores: Array(18).fill(''),
+                threePutts: Array(18).fill(''),
+                stablefordPoints: Array(18).fill('')
+            }));
+            renderScorecard();
+            
+            if (db && currentUser && appId) {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
+                const q = collection(db, collectionPath);
+                
+                unsubscribeFromSnapshot = onSnapshot(q, (querySnapshot) => {
+                    const fetchedEntries = {};
+                    querySnapshot.forEach((doc) => {
+                        fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+
+                    playersData = roundsData[roundNumber].players.map(player => {
+                        const fetchedPlayer = fetchedEntries[player.name];
+                        return fetchedPlayer ? {
+                            ...player,
+                            scores: fetchedPlayer.scores || Array(18).fill(''),
+                            threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
+                            stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
+                        } : {
+                            ...player,
+                            scores: Array(18).fill(''),
+                            threePutts: Array(18).fill(''),
+                            stablefordPoints: Array(18).fill('')
+                        };
+                    });
+                    renderScorecard();
+                    console.log("Data fetched and scorecard rendered.");
+                    isFetching = false;
+                }, (e) => {
+                    console.error('Error fetching data:', e);
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch real-time data. Please check your connection.</div>';
+                    isFetching = false;
+                    unsubscribeFromSnapshot();
+                });
+            } else {
+                isFetching = false;
+                console.log("Firebase not ready. Displaying default scores.");
+            }
+        };
+        
+        /**
+         * Fetches all round data to calculate the overall leaderboards.
+         */
+        const fetchLeaderboardData = async () => {
+            if (!db || !currentUser || !appId) {
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data.</div>';
+                return;
+            }
+
+            const players = roundsData[1].players.map(p => p.name);
+            const playerTotals = players.reduce((acc, name) => {
+                acc[name] = { totalStableford: 0, stablefordByRound: {} };
+                return acc;
+            }, {});
+
+            try {
+                // Fetch data for all 4 rounds concurrently
+                const fetchPromises = [1, 2, 3, 4].map(round => {
+                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${round}`;
+                    return getDocs(collection(db, collectionPath));
+                });
+                
+                const querySnapshots = await Promise.all(fetchPromises);
+                
+                // Process each round's data
+                querySnapshots.forEach((snapshot, index) => {
+                    const roundNumber = index + 1;
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const playerName = doc.id;
+                        if (playerTotals[playerName]) {
+                            const totalRoundStableford = calculateTotalStableford(data.stablefordPoints || []);
+                            playerTotals[playerName].totalStableford += totalRoundStableford;
+                            playerTotals[playerName].stablefordByRound[roundNumber] = totalRoundStableford;
+                        }
+                    });
+                });
+                
+                // Convert the object to an array for sorting
+                const sortedPlayers = Object.entries(playerTotals)
+                    .map(([name, data]) => ({
+                        name: name,
+                        totalStableford: data.totalStableford,
+                        stablefordByRound: data.stablefordByRound
+                    }))
+                    .sort((a, b) => b.totalStableford - a.totalStableford); // Sort by total stableford points, descending
+
+                renderLeaderboards(sortedPlayers);
+
+            } catch (error) {
+                console.error("Error fetching leaderboard data:", error);
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>';
+            }
+        };
+
+        const renderScorecard = () => {
+            const roundDetails = roundsData[currentRound];
+            const contentDiv = document.getElementById('content');
+            
+            // Calculate total par for in and out holes
+            const inPar = roundDetails.holes.slice(0, 9).reduce((sum, h) => sum + h.par, 0);
+            const outPar = roundDetails.holes.slice(9, 18).reduce((sum, h) => sum + h.par, 0);
+            const totalPar = inPar + outPar;
+            roundDetails.par = totalPar; // Update the total par
+
+            const scorecardHtml = `
+            <div id="scorecard-wrapper">
+                <!-- Round Details -->
+                <div class="bg-white bg-opacity-70 p-4 rounded-xl shadow-inner mb-6 ring-1 ring-gray-200">
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-700 mb-2">Round ${currentRound}: ${roundDetails.course}</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div class="flex flex-col"><span class="font-bold">Tees:</span> <span>${roundDetails.tees}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Slope Rate:</span> <span>${roundDetails.slope}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Scratch:</span> <span>${roundDetails.scratch}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Par:</span> <span>${roundDetails.par}</span></div>
+                    </div>
+                </div>
+
+                <!-- Round Selection Buttons -->
+                <div class="flex flex-wrap justify-center gap-2 mb-6 p-4 rounded-xl shadow-inner bg-gray-100 bg-opacity-70">
+                    ${[1, 2, 3, 4].map(round => `
+                        <button type="button" data-round="${round}" class="px-4 py-2 rounded-lg font-medium transition-colors shadow-md ${currentRound === round ? 'bg-gray-700 text-white' : 'bg-gray-300 text-gray-800 hover:bg-gray-400'}">
+                            Round ${round}
+                        </button>
+                    `).join('')}
+                </div>
+
+                <!-- Gross Scores Table -->
+                <div class="overflow-x-auto shadow-lg rounded-xl mb-6 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-gray-800 text-white rounded-t-xl">Gross Scores</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-gray-700 rounded-tl-lg text-xs md:text-sm">Player</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">GA H/Cap</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">Daily H/Cap</th>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">In</th>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">Out</th>
+                                <th class="p-1 py-2 text-center font-semibold rounded-tr-lg bg-gray-900 text-xs md:text-sm">Total</th>
+                            </tr>
+                            <tr class="bg-gray-600 text-white font-medium">
+                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600">Par</td>
+                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center"></td>
+                                ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
+                                    <td class="p-0.5 text-center">
+                                        <input type="number" inputmode="numeric" value="${hole.par}" data-hole-index="${i}" data-hole-type="par"
+                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                    </td>
+                                `).join('')}
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700">${inPar}</td>
+                                ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
+                                    <td class="p-0.5 text-center">
+                                        <input type="number" inputmode="numeric" value="${hole.par}" data-hole-index="${i + 9}" data-hole-type="par"
+                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                    </td>
+                                `).join('')}
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700">${outPar}</td>
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-800">${totalPar}</td>
+                            </tr>
+                            <tr class="bg-gray-600 text-white font-medium">
+                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600 rounded-bl-lg">HCap</td>
+                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center"></td>
+                                ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
+                                    <td class="p-0.5 text-center">
+                                        <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i}" data-hole-type="hcap"
+                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                    </td>
+                                `).join('')}
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
+                                ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
+                                    <td class="p-0.5 text-center">
+                                        <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i + 9}" data-hole-type="hcap"
+                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                    </td>
+                                `).join('')}
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
+                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-800 rounded-br-lg"></td>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${playersData.map((player, playerIndex) => `
+                                <tr class="${playerIndex % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors border-b border-gray-200">
+                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.aguHCap}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
+                                    ${player.scores.slice(0, 9).map((score, scoreIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-type="scores"
+                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200" oninput="handleScoreChange(event)">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateInScore(player.scores)}</td>
+                                    ${player.scores.slice(9, 18).map((score, scoreIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-type="scores"
+                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200" oninput="handleScoreChange(event)">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateOutScore(player.scores)}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-200">${calculateTotalScore(player.scores)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Stableford Points Table -->
+                <div class="overflow-x-auto shadow-lg rounded-xl mt-8 mb-6 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-blue-800 text-white rounded-t-xl">Stableford Points</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-blue-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-blue-700 rounded-tl-lg text-xs md:text-sm">Player</th>
+                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center font-medium"></td>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-blue-800 text-xs md:text-sm">In</th>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-blue-800 text-xs md:text-sm">Out</th>
+                                <th class="p-1 py-2 text-center font-semibold rounded-tr-lg bg-blue-900 text-xs md:text-sm">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${playersData.map((player, playerIndex) => `
+                                <tr class="${playerIndex % 2 === 0 ? 'bg-blue-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-blue-100 transition-colors border-b border-gray-200">
+                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.aguHCap}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
+                                    ${player.stablefordPoints.slice(0, 9).map((points) => `
+                                        <td class="p-1 text-xs md:text-sm text-center">${points}</td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-100">${calculateInStableford(player.stablefordPoints)}</td>
+                                    ${player.stablefordPoints.slice(9, 18).map((points) => `
+                                        <td class="p-1 text-xs md:text-sm text-center">${points}</td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-100">${calculateOutStableford(player.stablefordPoints)}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-200">${calculateTotalStableford(player.stablefordPoints)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 3-Putts Section -->
+                <div class="overflow-x-auto shadow-lg rounded-xl mt-8 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-red-800 text-white rounded-t-xl">Three Putts ??</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-red-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-red-700 text-xs md:text-sm">Player</th>
+                                ${[...Array(18)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-red-800 rounded-tr-lg text-xs md:text-sm">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${playersData.map((player, playerIndex) => `
+                                <tr class="${playerIndex % 2 === 0 ? 'bg-red-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-red-100 transition-colors border-b border-gray-200">
+                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
+                                    ${player.threePutts.map((putts, puttIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="checkbox" ${putts == 1 ? 'checked' : ''} data-player-name="${player.name}" data-score-index="${puttIndex}" data-score-type="threePutts"
+                                            class="three-putt-checkbox" onchange="handleScoreChange(event)">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-red-100">${calculateTotalThreePutts(player.threePutts)}</td>
+                                </tr>
+                            `).join('')}
+                             <tr class="bg-red-900 text-white font-bold">
+                                <td class="px-1 text-xs md:text-sm sticky-col-header bg-red-900 rounded-bl-xl">Snake Total</td>
+                                <td colSpan="18" class="p-1 text-sm text-center"></td>
+                                <td class="p-1 text-sm text-center">${playersData.reduce((sum, player) => sum + calculateTotalThreePutts(player.threePutts), 0)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            `;
+            contentDiv.innerHTML = scorecardHtml;
+            
+            document.querySelectorAll('[data-round]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const round = parseInt(e.target.dataset.round);
+                    currentRound = round;
+                    fetchDataForRound(round);
+                });
+            });
+
+            const scorecardBtn = document.getElementById('scorecard-btn');
+            const leaderboardsBtn = document.getElementById('leaderboards-btn');
+            const formGuideBtn = document.getElementById('form-guide-btn');
+            const rulesBtn = document.getElementById('rules-btn');
+            const groupsBtn = document.getElementById('groups-btn');
+
+            if (scorecardBtn) scorecardBtn.addEventListener('click', () => renderPage('scorecard'));
+            if (leaderboardsBtn) leaderboardsBtn.addEventListener('click', () => renderPage('leaderboards'));
+            if (formGuideBtn) formGuideBtn.addEventListener('click', () => renderPage('formGuide'));
+            if (rulesBtn) rulesBtn.addEventListener('click', () => renderPage('rules'));
+            if (groupsBtn) groupsBtn.addEventListener('click', () => renderPage('playingGroups'));
+        };
+        
+        /**
+         * Renders the leaderboard page with the provided sorted data.
+         * @param {Array} sortedPlayers An array of player objects with their total Stableford scores.
+         */
+        const renderLeaderboards = (sortedPlayers) => {
+            const contentDiv = document.getElementById('content');
+            
+            const leaderboardsHtml = `
+                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                    <h2 class="text-2xl font-bold mb-4 text-center md:text-left">Overall Leaderboards</h2>
+                    <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                        <table class="min-w-full divide-y divide-gray-200 table-auto">
+                            <thead class="bg-blue-700 text-white">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-blue-700 rounded-tl-xl">Rank</th>
+                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Total Stableford</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 1</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 2</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 3</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider rounded-tr-xl">Round 4</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${sortedPlayers.map((player, index) => `
+                                    <tr class="${index % 2 === 0 ? 'bg-blue-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-blue-100 transition-colors">
+                                        <td class="p-2 whitespace-nowrap text-xs font-bold text-gray-900 sticky-col-header bg-inherit">${index + 1}</td>
+                                        <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${player.name}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-lg font-bold text-gray-700">${player.totalStableford}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[1] || 0}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[2] || 0}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[3] || 0}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[4] || 0}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            contentDiv.innerHTML = leaderboardsHtml;
+        };
+
+        // --- Event Handlers ---
+        window.handleScoreChange = async (e) => {
+            const { playerName, scoreIndex, scoreType } = e.target.dataset;
+            const sIndex = parseInt(scoreIndex);
+
+            if (!db || !currentUser || !appId) {
+                console.error("Database connection not ready. Cannot save.");
+                showStatusMessage('Database not ready. Score not saved.', 'error');
+                return;
+            }
+
+            // Find the player and round details
+            const playerToUpdate = playersData.find(p => p.name === playerName);
+            const roundDetails = roundsData[currentRound];
+            
+            if (!playerToUpdate || !roundDetails) {
+                console.error("Player or round details not found.");
+                return;
+            }
+
+            let dataToMerge = {
+                playerName: playerName,
+                aguHCap: playerToUpdate.aguHCap,
+                dailyHCap: playerToUpdate.dailyHCap,
+                lastUpdated: serverTimestamp()
+            };
+
+            if (scoreType === 'scores') {
+                const grossScore = parseInt(e.target.value) || '';
+                playerToUpdate.scores[sIndex] = grossScore;
+                
+                // Stableford calculation
+                const holePar = roundDetails.holes[sIndex].par;
+                const holeHCap = roundDetails.holes[sIndex].hcap;
+                const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap); // Use a whole number for stroke allocation
+                
+                let handicapStrokes = 0;
+                
+                // This logic correctly distributes handicap strokes for whole number handicaps.
+                // It assigns one stroke per hole up to 18, and then extra strokes on the hardest holes.
+                const strokesPerRound = Math.floor(dailyHCapRounded / 18);
+                const remainingStrokes = dailyHCapRounded % 18;
+                
+                if (holeHCap <= remainingStrokes) {
+                    handicapStrokes = strokesPerRound + 1;
+                } else {
+                    handicapStrokes = strokesPerRound;
+                }
+                
+                const stablefordPoints = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
+                playerToUpdate.stablefordPoints[sIndex] = stablefordPoints;
+                
+                dataToMerge.scores = playerToUpdate.scores;
+                dataToMerge.stablefordPoints = playerToUpdate.stablefordPoints;
+
+            } else if (scoreType === 'threePutts') {
+                const value = e.target.checked ? '1' : '0';
+                playerToUpdate.threePutts[sIndex] = value;
+                dataToMerge.threePutts = playerToUpdate.threePutts;
+            }
+
+            try {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                const playerDocRef = doc(db, collectionPath, playerName);
+                
+                await setDoc(playerDocRef, dataToMerge, { merge: true });
+                console.log(`Score updated for ${playerName} on hole ${sIndex + 1}`);
+            } catch (error) {
+                console.error("Error updating document:", error);
+                showStatusMessage('Failed to save score. Try again.', 'error');
+            }
+        };
+
+        window.handleCourseDataChange = (e) => {
+            const { holeIndex, holeType } = e.target.dataset;
+            const newParOrHcap = parseInt(e.target.value);
+            const index = parseInt(holeIndex);
+            
+            // Check for valid input
+            if (isNaN(newParOrHcap)) {
+                e.target.value = '';
+                return;
+            }
+
+            // Update the global roundsData object
+            if (holeType === 'par') {
+                roundsData[currentRound].holes[index].par = newParOrHcap;
+            } else if (holeType === 'hcap') {
+                roundsData[currentRound].holes[index].hcap = newParOrHcap;
+            }
+
+            // Re-render the scorecard to update all totals
+            renderScorecard();
+        };
+
+        const renderPage = (page) => {
+            const contentDiv = document.getElementById('content');
+            let contentHtml = '';
+            
+            const activeBtn = document.getElementById(`${page}-btn`);
+            document.querySelectorAll('nav button').forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('bg-gray-700', 'text-white', 'shadow-lg');
+                    btn.classList.add('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+                }
+            });
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+                activeBtn.classList.add('bg-gray-700', 'text-white', 'shadow-lg');
+            }
+
+            if (unsubscribeFromSnapshot) {
+                unsubscribeFromSnapshot();
+                unsubscribeFromSnapshot = null;
+            }
+
+            switch (page) {
+                case 'scorecard':
+                    fetchDataForRound(currentRound);
+                    return;
+                case 'leaderboards':
+                    fetchLeaderboardData();
+                    return;
+                case 'formGuide':
+                    const playersWithGuide = roundsData[currentRound].players.map(player => ({
+                        ...player,
+                        ...formGuideData[player.name]
+                    }));
+
+                    contentHtml = `
+                        <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4 text-center md:text-left">Form Guide</h2>
+                            <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                                    <thead class="bg-gray-700 text-white">
+                                        <tr>
+                                            <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">H/Cap</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Odds</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Movement</th>
+                                            <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Comment</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${playersWithGuide.map((player, index) => `
+                                            <tr class="${index % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors">
+                                                <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${player.name}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.aguHCap}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.odds}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-sm font-bold">
+                                                    ${player.movement === 'up' ? '<span class="text-green-600">▲</span>' : player.movement === 'down' ? '<span class="text-red-600">▼</span>' : '<span class="text-gray-500">?</span>'}
+                                                </td>
+                                                <td class="p-2 text-xs text-gray-500 max-w-prose break-words">${player.comment}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'rules':
+                    contentHtml = `
+                        <div class="bg-gray-50 bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4 text-gray-900">2025 Legends Tour - Rules of Engagement</h2>
+                            <ol class="list-decimal list-inside space-y-3 text-sm md:text-base">
+                                <li><b>NOBODY listens to Ben.</b></li>
+                                <li><b>Listen to Huntie</b>, but do the opposite of what he says.</li>
+                                <li>The player who won last year's competition has final say on interpretation of rules.</li>
+                                <li>Everyone pays $100 AUD or equivalent Vietnam Dong at start of trip to pay for daily shirts, pin shots and prizes. Any remaining funds will be used on the final night dinner & drinks.</li>
+                                <li>
+                                    <p><b>Overall competition is over 4 rounds of STABLEFORD Nett</b>. The Cup winner will have the highest total nett stableford points for the 4 rounds. Each player to count their shots and putts per hole.</p>
+                                    <ul class="list-disc list-inside ml-4 mt-2 space-y-1 text-gray-600">
+                                        <li><b>Day 1:</b> nett STABLEFORD result is the shirt winner.</li>
+                                        <li><b>Day 2:</b> 2 tie all tie STABLEFORD for the 4 groups of 2. 1 shirt each for the winning group. In case of a tie in a group, lowest nett score.</li>
+                                        <li><b>Day 3:</b> nett STABLEFORD result is the shirt winner.</li>
+                                        <li><b>Day 4:</b> nett STABLEFORD result is the shirt winner.</li>
+                                    </ul>
+                                </li>
+                                <li>Players can only win one shirt for the tour.</li>
+                                <li>The overall winner shall be presented a bottle of spirits or equivalent worth up to $60 AUD.</li>
+                                <li>Each Day there are 2 pin shots and a long drive. A sleeve of balls for the winners. Holes to be nominated on the day. Only 1 pin shot per player per day.</li>
+                                <li>Each Day the player with the worst shot / most memorable event receives a sleeve of balls.</li>
+                                <li><b>3 Putts</b> are counted for each round - the snake will be awarded for the most 3 putts (in case of a tie, most putts overall). Each 3 putt generates a $2 'fine' to go towards a bottle of spirits for the final nights celebrations.</li>
+                                <li>Must tee off with a 3 or 4 iron or 3 hybrid on minimum 2 holes each day.</li>
+                                <li><b>"Rok Rule"</b> A minimum of 2 alcoholic beverages must be had each round. Failure to abide by this rule disqualifies the player from winning the day's event.</li>
+                                <li>If a player is offered a drink on course they must drink it.</li>
+                                <li>If you spray wide into the jungle it's deemed a lateral hazard so take a drop from entry (+ add 1 shot penalty).</li>
+                                <li>Any other rule that is agreed to on tour (ratified by rule 3)</li>
+                            </ol>
+                            <h3 class="text-xl font-bold mb-2 mt-6 text-gray-900">Daily Prizes</h3>
+                            <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                                    <thead class="bg-gray-700 text-white">
+                                        <tr>
+                                            <th class="p-2 text-left text-xs font-semibold uppercase tracking-wider">Day</th>
+                                            <th class="p-2 text-left text-xs font-semibold uppercase tracking-wider">Course</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Pin Shot 1</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Pin Shot 2</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Long Drive</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${Object.entries(prizesData).map(([day, prize], index) => `
+                                            <tr class="${index % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors">
+                                                <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${day}</td>
+                                                <td class="p-2 whitespace-nowrap text-xs text-gray-500">${prize.course}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot1}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot2}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.longDrive}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'playingGroups':
+                    contentHtml = `
+                        <div class="bg-gray-50 bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4">Playing Groups and Prizes</h2>
+                            <p class="mb-4">Here you can see and edit the playing groups for each round. Below that, you'll find the daily prizes as listed.</p>
+                            
+                            <!-- Playing Groups Table -->
+                            <div class="overflow-x-auto shadow-lg rounded-xl mb-6 border border-gray-300">
+                                <h3 class="text-xl font-bold p-3 bg-gray-800 text-white rounded-t-xl">Playing Groups</h3>
+                                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                                    <thead class="bg-gray-700 text-white">
+                                        <tr>
+                                            <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Day</th>
+                                            <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Groups</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Group 1</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Group 2</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Group 3</th>
+                                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Group 4</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="playing-groups-table-body" class="bg-white divide-y divide-gray-200">
+                                        ${Object.entries(playingGroupsData).map(([day, data], index) => `
+                                            <tr class="${index % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors">
+                                                <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${day}</td>
+                                                <td class="p-2 whitespace-nowrap text-xs text-gray-500">${data.grouping}</td>
+                                                ${data.groups.map((group, groupIndex) => `
+                                                    <td class="p-1 text-center">
+                                                        <span contenteditable="true" data-day="${day}" data-group-index="${groupIndex}" class="editable-cell text-xs">${group}</span>
+                                                    </td>
+                                                `).join('')}
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Daily Prizes Table -->
+                            <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                                <h3 class="text-xl font-bold p-3 bg-gray-800 text-white rounded-t-xl">Daily Prizes</h3>
+                                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                                    <thead class="bg-gray-700 text-white">
+                                        <tr>
+                                            <th class="p-2 text-left text-xs font-semibold uppercase tracking-wider">Day</th>
+                                            <th class="p-2 text-left text-xs font-semibold uppercase tracking-wider">Course</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Pin Shot 1</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Pin Shot 2</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Long Drive</th>
+                                            <th class="p-2 text-center text-xs font-semibold uppercase tracking-wider">Worst Shot</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${Object.entries(prizesData).map(([day, prize], index) => `
+                                            <tr class="${index % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors">
+                                                <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${day}</td>
+                                                <td class="p-2 whitespace-nowrap text-xs text-gray-500">${prize.course}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot1}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot2}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.longDrive}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.worstShot}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <button id="save-groups-btn" class="w-full mt-6 bg-gradient-to-r from-green-600 to-green-800 text-white p-3 rounded-lg font-semibold hover:from-green-700 hover:to-green-900 transition-colors shadow-md">
+                                Save Groups
+                            </button>
+                            <div id="groups-status" class="mt-4 text-center font-medium"></div>
+                        </div>
+                    `;
+                    break;
+                default:
+                    contentHtml = '<div class="text-center p-8 text-gray-500">Page not found.</div>';
+                    break;
+            }
+            contentDiv.innerHTML = contentHtml;
+            
+            if (page === 'playingGroups') {
+                const saveGroupsBtn = document.getElementById('save-groups-btn');
+                if (saveGroupsBtn) {
+                    saveGroupsBtn.addEventListener('click', () => {
+                        document.querySelectorAll('#playing-groups-table-body tr').forEach(row => {
+                            const day = row.querySelector('td:first-child').textContent.trim();
+                            const groupCells = row.querySelectorAll('.editable-cell');
+                            const updatedGroups = Array.from(groupCells).map(cell => cell.textContent.trim());
+                            playingGroupsData[day].groups = updatedGroups;
+                        });
+                        const statusDiv = document.getElementById('groups-status');
+                        statusDiv.innerHTML = '<p class="text-green-600">Groups saved successfully!</p>';
+                        setTimeout(() => statusDiv.textContent = '', 3000);
+                        renderPage('playingGroups');
+                    });
+                }
+            }
+        };
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+            renderPage('scorecard');
+        });
+
+    </script>
+</body>
+</html>
