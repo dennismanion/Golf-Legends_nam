@@ -127,16 +127,16 @@
         import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
-        // IMPORTANT: Replace this with your actual Firebase project configuration.
-        // You can find this in your Firebase console under Project settings -> General.
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
+       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAuErizAOC5FCAVyNb-KfAlmqpoHqhflHQ",
+  authDomain: "interactive-golf-scorecard-app.firebaseapp.com",
+  projectId: "interactive-golf-scorecard-app",
+  storageBucket: "interactive-golf-scorecard-app.firebasestorage.app",
+  messagingSenderId: "301146578542",
+  appId: "1:301146578542:web:1e7515a3ab3c84fd5c507f",
+  measurementId: "G-48RGNE7JVN"
+};
         const appId = firebaseConfig.appId; // Use the appId from your config
         const initialAuthToken = null; // No initial token for a local environment
 
