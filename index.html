@@ -127,16 +127,16 @@
         import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAuErizAOC5FCAVyNb-KfAlmqpoHqhflHQ",
-  authDomain: "interactive-golf-scorecard-app.firebaseapp.com",
-  projectId: "interactive-golf-scorecard-app",
-  storageBucket: "interactive-golf-scorecard-app.firebasestorage.app",
-  messagingSenderId: "301146578542",
-  appId: "1:301146578542:web:1e7515a3ab3c84fd5c507f",
-  measurementId: "G-48RGNE7JVN"
-};
+        // IMPORTANT: Replace this with your actual Firebase project configuration.
+        // You can find this in your Firebase console under Project settings -> General.
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
         const appId = firebaseConfig.appId; // Use the appId from your config
         const initialAuthToken = null; // No initial token for a local environment
 
@@ -229,6 +229,7 @@ const firebaseConfig = {
         let playersData = [];
         let isFetching = false;
         let unsubscribeFromSnapshot = null;
+        let isFirebaseReady = false; // New flag to track Firebase readiness
 
         // --- Utility Functions ---
         function calculateInScore(scores) {
@@ -315,12 +316,15 @@ const firebaseConfig = {
                         currentUser = user;
                         document.getElementById('user-id-display').textContent = `User ID: ${currentUser.uid}`;
                         console.log("User authenticated:", currentUser.uid);
+                        isFirebaseReady = true; // Set the flag
+                        // Now that Firebase is ready, fetch the initial data
                         if (document.getElementById('scorecard-btn').classList.contains('bg-gray-700')) {
                              fetchDataForRound(currentRound);
                         }
                     } else {
                         console.log("No user is signed in.");
                         document.getElementById('user-id-display').textContent = 'User ID: Not authenticated';
+                        isFirebaseReady = true; // Still ready to handle unauthenticated state
                     }
                 });
             } catch (e) {
@@ -393,17 +397,36 @@ const firebaseConfig = {
          * Fetches all round data to calculate the overall leaderboards.
          */
         const fetchLeaderboardData = async () => {
-            if (!db || !currentUser || !appId) {
-                const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data.</div>';
+            const contentDiv = document.getElementById('content');
+            // Check if Firebase is ready before attempting to fetch
+            if (!isFirebaseReady || !db || !currentUser || !appId) {
+                contentDiv.innerHTML = `
+                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                        <div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data. Please wait a moment and try again.</div>
+                    </div>
+                `;
                 return;
             }
 
             const players = roundsData[1].players.map(p => p.name);
             const playerTotals = players.reduce((acc, name) => {
-                acc[name] = { totalStableford: 0, stablefordByRound: {} };
+                acc[name] = { totalStableford: 0, stablefordByRound: {}, totalThreePutts: 0 };
                 return acc;
             }, {});
+            
+            // Add a loading message
+            contentDiv.innerHTML = `
+                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                    <div class="text-center p-8">
+                        <svg class="animate-spin h-8 w-8 text-gray-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="mt-4 text-sm font-semibold">Loading leaderboards...</p>
+                    </div>
+                </div>
+            `;
+
 
             try {
                 // Fetch data for all 4 rounds concurrently
@@ -422,8 +445,10 @@ const firebaseConfig = {
                         const playerName = doc.id;
                         if (playerTotals[playerName]) {
                             const totalRoundStableford = calculateTotalStableford(data.stablefordPoints || []);
+                            const totalRoundThreePutts = calculateTotalThreePutts(data.threePutts || []);
                             playerTotals[playerName].totalStableford += totalRoundStableford;
                             playerTotals[playerName].stablefordByRound[roundNumber] = totalRoundStableford;
+                            playerTotals[playerName].totalThreePutts += totalRoundThreePutts;
                         }
                     });
                 });
@@ -433,16 +458,22 @@ const firebaseConfig = {
                     .map(([name, data]) => ({
                         name: name,
                         totalStableford: data.totalStableford,
-                        stablefordByRound: data.stablefordByRound
+                        stablefordByRound: data.stablefordByRound,
+                        totalThreePutts: data.totalThreePutts
                     }))
                     .sort((a, b) => b.totalStableford - a.totalStableford); // Sort by total stableford points, descending
 
-                renderLeaderboards(sortedPlayers);
+                const sortedThreePuttPlayers = [...sortedPlayers].sort((a, b) => b.totalThreePutts - a.totalThreePutts);
+                
+                renderLeaderboards(sortedPlayers, sortedThreePuttPlayers);
 
             } catch (error) {
                 console.error("Error fetching leaderboard data:", error);
-                const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>';
+                contentDiv.innerHTML = `
+                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                        <div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>
+                    </div>
+                `;
             }
         };
 
@@ -654,25 +685,32 @@ const firebaseConfig = {
         
         /**
          * Renders the leaderboard page with the provided sorted data.
-         * @param {Array} sortedPlayers An array of player objects with their total Stableford scores.
+         * It also triggers the data fetch.
          */
-        const renderLeaderboards = (sortedPlayers) => {
+        const renderLeaderboards = (sortedPlayers = [], sortedThreePuttPlayers = []) => {
             const contentDiv = document.getElementById('content');
+            
+            if (sortedPlayers.length === 0) {
+                 // Trigger the fetch if the data hasn't been provided yet
+                fetchLeaderboardData();
+                return; // Exit to let the fetch function handle the UI state
+            }
             
             const leaderboardsHtml = `
                 <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
                     <h2 class="text-2xl font-bold mb-4 text-center md:text-left">Overall Leaderboards</h2>
                     <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                        <h3 class="text-xl font-bold p-3 bg-blue-800 text-white rounded-t-xl">Stableford Leaderboard</h3>
                         <table class="min-w-full divide-y divide-gray-200 table-auto">
                             <thead class="bg-blue-700 text-white">
                                 <tr>
-                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-blue-700 rounded-tl-xl">Rank</th>
+                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-blue-700">Rank</th>
                                     <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
                                     <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Total Stableford</th>
                                     <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 1</th>
                                     <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 2</th>
                                     <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 3</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider rounded-tr-xl">Round 4</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 4</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -685,6 +723,28 @@ const firebaseConfig = {
                                         <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[2] || 0}</td>
                                         <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[3] || 0}</td>
                                         <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[4] || 0}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-8 overflow-x-auto shadow-lg rounded-xl border border-gray-300">
+                        <h3 class="text-xl font-bold p-3 bg-red-800 text-white rounded-t-xl">3-Putt Leaderboard (Snake)</h3>
+                        <table class="min-w-full divide-y divide-gray-200 table-auto">
+                            <thead class="bg-red-700 text-white">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-red-700">Rank</th>
+                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
+                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Total 3-Putts</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${sortedThreePuttPlayers.map((player, index) => `
+                                    <tr class="${index % 2 === 0 ? 'bg-red-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-red-100 transition-colors">
+                                        <td class="p-2 whitespace-nowrap text-xs font-bold text-gray-900 sticky-col-header bg-inherit">${index + 1}</td>
+                                        <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${player.name}</td>
+                                        <td class="p-2 whitespace-nowrap text-center text-lg font-bold text-gray-700">${player.totalThreePutts}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -816,7 +876,8 @@ const firebaseConfig = {
                     fetchDataForRound(currentRound);
                     return;
                 case 'leaderboards':
-                    fetchLeaderboardData();
+                    // Just call the renderer, which will handle the data fetch
+                    renderLeaderboards(); 
                     return;
                 case 'formGuide':
                     const playersWithGuide = roundsData[currentRound].players.map(player => ({
@@ -905,6 +966,7 @@ const firebaseConfig = {
                                                 <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot1}</td>
                                                 <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.pinShot2}</td>
                                                 <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.longDrive}</td>
+                                                <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${prize.worstShot}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -1002,7 +1064,7 @@ const firebaseConfig = {
                             playingGroupsData[day].groups = updatedGroups;
                         });
                         const statusDiv = document.getElementById('groups-status');
-                        statusDiv.innerHTML = '<p class="text-green-600">Groups saved successfully!</p>';
+                        statusDiv.innerHTML = '<p class=\"text-green-600\">Groups saved successfully!</p>';
                         setTimeout(() => statusDiv.textContent = '', 3000);
                         renderPage('playingGroups');
                     });
