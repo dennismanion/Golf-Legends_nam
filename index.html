@@ -214,6 +214,7 @@
         let currentRound = 1;
         let playersData = [];
         let isFetching = false;
+        let isAuthReady = false; // New flag to track authentication status
         let unsubscribeFromSnapshot = null;
 
         // --- Utility Functions ---
@@ -286,35 +287,42 @@
                 appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
+                // Sign in logic
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
 
+                // Listen for auth state changes to confirm readiness
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         currentUser = user;
                         document.getElementById('user-id-display').textContent = `User ID: ${currentUser.uid}`;
                         console.log("User authenticated:", currentUser.uid);
+                        isAuthReady = true; // Set the flag to true after successful authentication
+                        
+                        // Only fetch data after authentication is ready
                         if (document.getElementById('scorecard-btn').classList.contains('bg-gray-700')) {
                              fetchDataForRound(currentRound);
                         }
                     } else {
                         console.log("No user is signed in.");
                         document.getElementById('user-id-display').textContent = 'User ID: Not authenticated';
+                        isAuthReady = false;
                     }
                 });
             } catch (e) {
                 console.error("Error initializing Firebase:", e);
                 const contentDiv = document.getElementById('content');
                 contentDiv.innerHTML += '<div class="text-center text-red-600 font-bold p-4">Error connecting to database. Scores will not be saved.</div>';
+                isAuthReady = false; // Ensure flag is false on error
             }
         };
 
         // --- Data Fetching and Rendering ---
         const fetchDataForRound = (roundNumber) => {
-            if (isFetching) return;
+            if (isFetching || !isAuthReady) return; // Add check for auth readiness
             isFetching = true;
             
             // Unsubscribe from previous round's snapshot listener if it exists
@@ -577,6 +585,12 @@
 
         // --- Event Handlers ---
         window.handleScoreChange = async (e) => {
+            // Check if authentication is ready before proceeding
+            if (!isAuthReady) {
+                showStatusMessage('Database not ready. Score not saved.', 'error');
+                return;
+            }
+
             const { playerName, scoreIndex, scoreType } = e.target.dataset;
             const sIndex = parseInt(scoreIndex);
 
