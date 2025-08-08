@@ -272,8 +272,16 @@
 
         // --- Firebase Initialization and Auth ---
         const initializeFirebase = async () => {
+            let firebaseConfig;
             try {
-                const firebaseConfig = JSON.parse(__firebase_config);
+                // Safely parse the firebase config.
+                if (typeof __firebase_config === 'string' && __firebase_config.length > 0) {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } else {
+                    throw new Error("Firebase configuration is not available.");
+                }
+
+                // Initialize the app.
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -312,7 +320,7 @@
             } catch (e) {
                 console.error("Error initializing Firebase:", e);
                 const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML += '<div class="text-center text-red-600 font-bold p-4">Error connecting to database. Scores will not be saved.</div>';
+                contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-4">Error: Database connection failed. Please check your configuration.</div>';
                 isAuthReady = false; 
             }
         };
