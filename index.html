@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 Vietnam Golf Legends Scorecard</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Using the public image URL you provided */
+            background-image: url('https://i0.wp.com/mylsmga.org/wp-content/uploads/2018/02/eOZbIG4-free-golf-wallpaper.jpg?ssl=1');
+            background-color: #2D3748; /* Dark gray fallback */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+        /* Frosted glass effect for the main container */
+        #app-container {
+            backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(209, 213, 219, 0.5); /* gray-300 with opacity */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.7); /* gray-500 with opacity */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(75, 85, 99, 0.9); /* gray-600 with opacity */
+        }
+        /* Lock position for sticky elements */
+        .sticky-col-header {
+            left: 0;
+            position: sticky;
+            z-index: 10;
+        }
+        .sticky-col-header.bg-inherit {
+            /* To make sure the sticky cell matches the row background */
+            background-color: inherit;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div id="app-container" class="w-full max-w-7xl mx-auto rounded-2xl shadow-xl border border-gray-300 p-6 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">2025 Vietnam Golf Legends</h1>
+            <p class="text-xl mt-2 text-gray-700">Official Scoring Sheet</p>
+            <p id="user-id-display" class="text-xs mt-2 text-gray-600"></p>
+        </header>
+
+        <!-- Round and Page Navigation -->
+        <nav class="flex flex-wrap justify-center space-x-2 md:space-x-4 mb-6">
+            <button id="scorecard-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-700 text-white shadow-lg">Scorecard</button>
+            <button id="form-guide-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Form Guide</button>
+            <button id="rules-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Rules of Engagement</button>
+            <button id="groups-btn" class="px-4 py-2 rounded-full font-semibold text-sm md:text-base transition-colors bg-gray-200 text-gray-800 hover:bg-gray-300">Playing Groups</button>
+        </nav>
+        
+        <!-- Main content area -->
+        <div id="content">
+            <!-- This is where the scorecard or other pages will be rendered -->
+        </div>
+
+        <!-- Submission Status Modal -->
+        <div id="status-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full">
+                <p id="status-message" class="text-lg font-semibold text-gray-800 mb-4"></p>
+                <button onclick="document.getElementById('status-modal').classList.add('hidden')" class="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Data Definitions ---
+        const roundsData = {
+            1: {
+                course: 'Ba Na Hills', tees: 'white tees', slope: 133, scratch: 69.6, par: 72,
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.55 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.27 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.49 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 28.20 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.54 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 13.42 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 30.39 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.70 }
+                ]
+            },
+            2: {
+                course: 'Montgomerie Golf Links', tees: 'blue tees', slope: 135, scratch: 72, par: 72,
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.88 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.54 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.88 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 28.66 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.66 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 13.66 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 30.88 }, { name: 'Brad', aguHCap: '31', dailyHCap: 32.21 }
+                ]
+            },
+            3: {
+                course: 'Hoiana Shores', tees: 'black tees', slope: 140, scratch: 73, par: 72,
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 20.12 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 17.01 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 24.53 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 29.11 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 6.04 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 14.28 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 31.25 }, { name: 'Brad', aguHCap: '31', dailyHCap: 32.88 }
+                ]
+            },
+            4: {
+                course: 'BRG Da Nang Golf Resort Nicklaus Course', tees: 'yellow tees', slope: 130, scratch: 70, par: 72,
+                players: [
+                    { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.15 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.09 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 22.95 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 27.88 },
+                    { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.21 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 12.99 },
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 29.98 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.12 }
+                ]
+            }
+        };
+
+        // --- Global Variables ---
+        let db;
+        let auth;
+        let currentUser;
+        let appId;
+        let currentRound = 1;
+        let playersData = [];
+        let isFetching = false;
+
+        // --- Utility Functions ---
+        function calculateInScore(scores) {
+            return scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateOutScore(scores) {
+            return scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateTotalScore(scores) {
+            return scores.reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        }
+        function calculateTotalThreePutts(threePutts) {
+            return threePutts.reduce((sum, putts) => sum + (parseInt(putts) || 0), 0);
+        }
+
+        function showStatusMessage(message, type) {
+            const modal = document.getElementById('status-modal');
+            const msgElement = document.getElementById('status-message');
+            msgElement.textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            // Hide the modal after 3 seconds
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 3000);
+        }
+
+        // --- Firebase Initialization and Auth ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyAuErizAOC5FCAVyNb-KfAlmqpoHqhflHQ",
+          authDomain: "interactive-golf-scorecard-app.firebaseapp.com",
+          projectId: "interactive-golf-scorecard-app",
+          storageBucket: "interactive-golf-scorecard-app.firebasestorage.app",
+          messagingSenderId: "301146578542",
+          appId: "1:301146578542:web:1e7515a3ab3c84fd5c507f",
+          measurementId: "G-48RGNE7JVN"
+        };
+
+        const initializeFirebase = async () => {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                // Sign in the user
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for auth state changes and then fetch data
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        document.getElementById('user-id-display').textContent = `User ID: ${currentUser.uid}`;
+                        console.log("User authenticated:", currentUser.uid);
+                        fetchDataForRound(currentRound);
+                    } else {
+                        console.log("No user is signed in.");
+                        document.getElementById('user-id-display').textContent = 'User ID: Not authenticated';
+                    }
+                });
+            } catch (e) {
+                console.error("Error initializing Firebase:", e);
+                const contentDiv = document.getElementById('content');
+                // Display an error message if Firebase fails to initialize
+                contentDiv.innerHTML += '<div class="text-center text-red-600 font-bold p-4">Error connecting to database. Scores will not be saved.</div>';
+            }
+        };
+
+        // --- Data Fetching and Rendering ---
+        const fetchDataForRound = (roundNumber) => {
+            if (isFetching) return; // Prevent multiple fetches
+            isFetching = true;
+            
+            // Render the scorecard with default data first
+            playersData = roundsData[roundNumber].players.map(p => ({
+                ...p,
+                scores: Array(18).fill(''),
+                threePutts: Array(18).fill('')
+            }));
+            renderScorecard();
+            
+            // Attempt to connect to Firestore and fetch real data
+            if (db && currentUser && appId) {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
+                const q = collection(db, collectionPath);
+                
+                const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                    const fetchedEntries = {};
+                    querySnapshot.forEach((doc) => {
+                        fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+
+                    playersData = roundsData[roundNumber].players.map(player => {
+                        const fetchedPlayer = fetchedEntries[player.name];
+                        return fetchedPlayer ? {
+                            ...player,
+                            scores: fetchedPlayer.scores || Array(18).fill(''),
+                            threePutts: fetchedPlayer.threePutts || Array(18).fill('')
+                        } : {
+                            ...player,
+                            scores: Array(18).fill(''),
+                            threePutts: Array(18).fill('')
+                        };
+                    });
+                    renderScorecard();
+                    console.log("Data fetched and scorecard rendered.");
+                    isFetching = false;
+                }, (e) => {
+                    console.error('Error fetching data:', e);
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-8">Could not fetch real-time data. Please check your connection.</div>';
+                    isFetching = false;
+                    unsubscribe(); // Stop listening if there's an error
+                });
+            } else {
+                isFetching = false;
+                console.log("Firebase not ready. Displaying default scores.");
+            }
+        };
+
+        const renderScorecard = () => {
+            const roundDetails = roundsData[currentRound];
+            const contentDiv = document.getElementById('content');
+            
+            // Generate the HTML for the scorecard
+            const scorecardHtml = `
+            <form id="scorecard-form">
+                <!-- Round Details -->
+                <div class="bg-white bg-opacity-70 p-4 rounded-xl shadow-inner mb-6 ring-1 ring-gray-200">
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-700 mb-2">Round ${currentRound}: ${roundDetails.course}</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div class="flex flex-col"><span class="font-bold">Tees:</span> <span>${roundDetails.tees}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Slope Rate:</span> <span>${roundDetails.slope}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Scratch:</span> <span>${roundDetails.scratch}</span></div>
+                        <div class="flex flex-col"><span class="font-bold">Par:</span> <span>${roundDetails.par}</span></div>
+                    </div>
+                </div>
+
+                <!-- Round Selection Buttons -->
+                <div class="flex flex-wrap justify-center gap-2 mb-6 p-4 rounded-xl shadow-inner bg-gray-100 bg-opacity-70">
+                    ${[1, 2, 3, 4].map(round => `
+                        <button type="button" data-round="${round}" class="px-4 py-2 rounded-lg font-medium transition-colors shadow-md ${currentRound === round ? 'bg-gray-700 text-white' : 'bg-gray-300 text-gray-800 hover:bg-gray-400'}">
+                            Round ${round}
+                        </button>
+                    `).join('')}
+                </div>
+
+                <!-- Gross Scores Table -->
+                <div class="overflow-x-auto shadow-lg rounded-xl mb-6 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-gray-800 text-white rounded-t-xl">Gross Scores</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-gray-700 rounded-tl-lg text-xs md:text-sm">Player</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">GA H/Cap</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">Daily H/Cap</th>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">In</th>
+                                ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">Out</th>
+                                <th class="p-1 py-2 text-center font-semibold rounded-tr-lg bg-gray-900 text-xs md:text-sm">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${playersData.map((player, playerIndex) => `
+                                <tr class="${playerIndex % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors border-b border-gray-200">
+                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.aguHCap}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
+                                    ${player.scores.slice(0, 9).map((score, scoreIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="number" value="${score}" data-player-index="${playerIndex}" data-score-index="${scoreIndex}" data-score-type="scores"
+                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateInScore(player.scores)}</td>
+                                    ${player.scores.slice(9, 18).map((score, scoreIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="number" value="${score}" data-player-index="${playerIndex}" data-score-index="${scoreIndex + 9}" data-score-type="scores"
+                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateOutScore(player.scores)}</td>
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-200">${calculateTotalScore(player.scores)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 3-Putts Section -->
+                <div class="overflow-x-auto shadow-lg rounded-xl mt-8 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-red-800 text-white rounded-t-xl">Three Putts ??</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-red-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-red-700 text-xs md:text-sm">Player</th>
+                                ${[...Array(18)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
+                                <th class="p-1 py-2 text-center font-semibold bg-red-800 rounded-tr-lg text-xs md:text-sm">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${playersData.map((player, playerIndex) => `
+                                <tr class="${playerIndex % 2 === 0 ? 'bg-red-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-red-100 transition-colors border-b border-gray-200">
+                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
+                                    ${player.threePutts.map((putts, puttIndex) => `
+                                        <td class="p-0.5 text-center">
+                                            <input type="number" value="${putts}" data-player-index="${playerIndex}" data-score-index="${puttIndex}" data-score-type="threePutts"
+                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-red-200">
+                                        </td>
+                                    `).join('')}
+                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-red-100">${calculateTotalThreePutts(player.threePutts)}</td>
+                                </tr>
+                            `).join('')}
+                             <tr class="bg-red-900 text-white font-bold">
+                                <td class="px-1 text-xs md:text-sm sticky-col-header bg-red-900 rounded-bl-xl">Snake Total</td>
+                                <td colSpan="18" class="p-1 text-sm text-center"></td>
+                                <td class="p-1 text-sm text-center">${playersData.reduce((sum, player) => sum + calculateTotalThreePutts(player.threePutts), 0)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <button type="submit" class="w-full mt-6 bg-gradient-to-r from-green-600 to-green-800 text-white p-3 rounded-lg font-semibold hover:from-green-700 hover:to-green-900 transition-colors shadow-md">
+                    Update Scorecards
+                </button>
+                <div id="submit-status" class="mt-4 text-center font-medium"></div>
+            </form>
+            `;
+            contentDiv.innerHTML = scorecardHtml;
+            
+            // Add event listeners for inputs and form submission
+            document.querySelectorAll('#scorecard-form input').forEach(input => {
+                input.addEventListener('input', handleScoreChange);
+            });
+            document.getElementById('scorecard-form').addEventListener('submit', handleSubmit);
+            
+            // Add event listeners for round buttons
+            document.querySelectorAll('[data-round]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const round = parseInt(e.target.dataset.round);
+                    currentRound = round;
+                    fetchDataForRound(round);
+                });
+            });
+
+            // Set up page navigation button listeners
+            document.getElementById('scorecard-btn').addEventListener('click', () => renderPage('scorecard'));
+            document.getElementById('form-guide-btn').addEventListener('click', () => renderPage('formGuide'));
+            document.getElementById('rules-btn').addEventListener('click', () => renderPage('rules'));
+            document.getElementById('groups-btn').addEventListener('click', () => renderPage('playingGroups'));
+        };
+
+        // --- Event Handlers ---
+        const handleScoreChange = (e) => {
+            const { playerIndex, scoreIndex, scoreType } = e.target.dataset;
+            const value = e.target.value;
+            const pIndex = parseInt(playerIndex);
+            const sIndex = parseInt(scoreIndex);
+
+            if (scoreType === 'scores') {
+                playersData[pIndex].scores[sIndex] = value;
+            } else if (scoreType === 'threePutts') {
+                playersData[pIndex].threePutts[sIndex] = value;
+            }
+            renderScorecard(); // Re-render to update totals
+        };
+
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            if (!db || !currentUser || !appId) {
+                showStatusMessage('Authentication not ready. Scores cannot be saved.', 'error');
+                return;
+            }
+
+            const submitStatusDiv = document.getElementById('submit-status');
+            submitStatusDiv.innerHTML = '<p class="text-green-600">Submitting...</p>';
+
+            try {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                for (const player of playersData) {
+                    const playerDocRef = doc(db, collectionPath, player.name);
+                    await setDoc(playerDocRef, {
+                        playerName: player.name,
+                        aguHCap: player.aguHCap,
+                        dailyHCap: player.dailyHCap,
+                        scores: player.scores,
+                        threePutts: player.threePutts,
+                        lastUpdated: serverTimestamp()
+                    }, { merge: true });
+                }
+                submitStatusDiv.innerHTML = '<p class="text-green-600">Scorecards submitted successfully!</p>';
+                setTimeout(() => submitStatusDiv.textContent = '', 3000);
+            } catch (error) {
+                console.error("Error updating documents:", error);
+                submitStatusDiv.innerHTML = '<p class="text-red-600">Failed to submit. Try again.</p>';
+                setTimeout(() => submitStatusDiv.textContent = '', 3000);
+            }
+        };
+
+        const renderPage = (page) => {
+            const contentDiv = document.getElementById('content');
+            let contentHtml = '';
+            
+            // Highlight the correct nav button
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('bg-gray-700', 'text-white', 'shadow-lg');
+                btn.classList.add('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+            });
+            document.getElementById(`${page}-btn`).classList.remove('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+            document.getElementById(`${page}-btn`).classList.add('bg-gray-700', 'text-white', 'shadow-lg');
+
+            switch (page) {
+                case 'scorecard':
+                    fetchDataForRound(currentRound);
+                    return; // Return here to let fetchDataForRound handle rendering
+                case 'formGuide':
+                    contentHtml = `
+                        <div class="bg-gray-50 bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4">Form Guide</h2>
+                            <p>This is where a detailed form guide for each player could be displayed. For example, average scores, number of three-putts per round, and other stats could be calculated and shown here to analyze performance over the tournament.</p>
+                            <ul class="list-disc list-inside mt-4 space-y-2">
+                                <li>**Average Score:** The average total score of each player.</li>
+                                <li>**Three-Putt Ratio:** Percentage of holes with a three-putt or more.</li>
+                                <li>**Handicap Changes:** How each player's handicap has adjusted throughout the event.</li>
+                            </ul>
+                        </div>
+                    `;
+                    break;
+                case 'rules':
+                    contentHtml = `
+                        <div class="bg-gray-50 bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4">Rules of Engagement</h2>
+                            <p>This section would contain the official rules for the tournament. It could include things like:</p>
+                            <ul class="list-disc list-inside mt-4 space-y-2">
+                                <li>**Mulligans:** Details on if and when mulligans are allowed.</li>
+                                <li>**Handicap Adjustments:** How daily handicaps are calculated and applied.</li>
+                                <li>**Prizes:** What prizes are available for various achievements (e.g., longest drive, nearest the pin, overall winner).</li>
+                                <li>**Snake Rule:** The three-putt "snake" rule and how it is enforced.</li>
+                            </ul>
+                        </div>
+                    `;
+                    break;
+                case 'playingGroups':
+                    contentHtml = `
+                        <div class="bg-gray-50 bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                            <h2 class="text-2xl font-bold mb-4">Playing Groups</h2>
+                            <p>Here you can see the playing groups for each round of the tournament. This would dynamically update based on the current round selected.</p>
+                            <div class="mt-4">
+                                <h3 class="text-xl font-bold mb-2">Round ${currentRound} Groups:</h3>
+                                <ul class="list-disc list-inside space-y-1">
+                                    <li>Group 1: Ben, Ian, Peter</li>
+                                    <li>Group 2: Neale, Neal, Dennis</li>
+                                    <li>Group 3: Tony, Brad</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                default:
+                    contentHtml = '<div class="text-center p-8 text-gray-500">Page not found.</div>';
+                    break;
+            }
+            contentDiv.innerHTML = contentHtml;
+        };
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+            renderPage('scorecard');
+        });
+
+    </script>
+</body>
+</html>
