@@ -248,6 +248,9 @@ const firebaseConfig = {
         let isFetching = false;
         let unsubscribeFromSnapshot = null;
         let isFirebaseReady = false; // New flag to track Firebase readiness
+        // Lock states for handicap inputs, stored in localStorage
+        let isHCapRowLocked = localStorage.getItem('isHCapRowLocked') === 'true';
+        let isGaHCapLocked = localStorage.getItem('isGaHCapLocked') === 'true';
 
         // --- Utility Functions ---
 
@@ -557,6 +560,23 @@ const firebaseConfig = {
             const totalPar = inPar + outPar;
             roundDetails.par = totalPar; // Update the total par
 
+            const hCapLockIcon = isHCapRowLocked
+                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-1 text-red-500">
+                     <path fill-rule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3a5.25 5.25 0 00-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clip-rule="evenodd" />
+                   </svg>`
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-1 text-green-500">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-10.5a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25z" />
+                   </svg>`;
+            
+            const gaHCapLockIcon = isGaHCapLocked
+                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-1 text-red-500">
+                     <path fill-rule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3a5.25 5.25 0 00-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clip-rule="evenodd" />
+                   </svg>`
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-1 text-green-500">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-10.5a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25z" />
+                   </svg>`;
+                   
+
             const scorecardHtml = `
             <div id="scorecard-wrapper">
                 <!-- Round Details -->
@@ -586,7 +606,10 @@ const firebaseConfig = {
                         <thead>
                             <tr class="bg-gray-700 text-white">
                                 <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-gray-700 rounded-tl-lg text-xs md:text-sm">Player</th>
-                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">GA H/Cap</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm relative">
+                                    GA H/Cap
+                                    <button class="absolute top-1/2 right-1 -translate-y-1/2 p-1" onclick="toggleLock('gaHCap')">${gaHCapLockIcon}</button>
+                                </th>
                                 <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">Daily H/Cap</th>
                                 ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
                                 <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">In</th>
@@ -614,19 +637,22 @@ const firebaseConfig = {
                                 <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-800">${totalPar}</td>
                             </tr>
                             <tr class="bg-gray-600 text-white font-medium">
-                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600 rounded-bl-lg">HCap</td>
+                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600 rounded-bl-lg relative">
+                                    HCap
+                                    <button class="absolute top-1/2 right-1 -translate-y-1/2 p-1" onclick="toggleLock('hcapRow')">${hCapLockIcon}</button>
+                                </td>
                                 <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center"></td>
                                 ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
                                     <td class="p-0.5 text-center">
                                         <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i}" data-hole-type="hcap"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                        class="hole-input ${isHCapRowLocked ? 'bg-gray-500' : ''}" oninput="handleCourseDataChange(event)" ${isHCapRowLocked ? 'disabled' : ''}>
                                     </td>
                                 `).join('')}
                                 <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
                                 ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
                                     <td class="p-0.5 text-center">
                                         <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i + 9}" data-hole-type="hcap"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                        class="hole-input ${isHCapRowLocked ? 'bg-gray-500' : ''}" oninput="handleCourseDataChange(event)" ${isHCapRowLocked ? 'disabled' : ''}>
                                     </td>
                                 `).join('')}
                                 <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
@@ -640,7 +666,7 @@ const firebaseConfig = {
                                     <!-- This is the new editable GA Handicap field -->
                                     <td class="p-1 text-center">
                                         <input type="text" inputmode="decimal" value="${player.aguHCap}" data-player-name="${player.name}" data-hcap-type="gaHCap"
-                                        class="hcap-input" oninput="handlePlayerHcapChange(event)">
+                                        class="hcap-input ${isGaHCapLocked ? 'bg-gray-300' : ''}" oninput="handlePlayerHcapChange(event)" ${isGaHCapLocked ? 'disabled' : ''}>
                                     </td>
                                     <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
                                     ${player.scores.slice(0, 9).map((score, scoreIndex) => `
@@ -756,77 +782,101 @@ const firebaseConfig = {
             if (rulesBtn) rulesBtn.addEventListener('click', () => renderPage('rules'));
             if (groupsBtn) groupsBtn.addEventListener('click', () => renderPage('playingGroups'));
         };
+
+        // NEW function to toggle the lock state and save to local storage
+        window.toggleLock = (type) => {
+            if (type === 'hcapRow') {
+                isHCapRowLocked = !isHCapRowLocked;
+                localStorage.setItem('isHCapRowLocked', isHCapRowLocked);
+            } else if (type === 'gaHCap') {
+                isGaHCapLocked = !isGaHCapLocked;
+                localStorage.setItem('isGaHCapLocked', isGaHCapLocked);
+            }
+            renderScorecard();
+        };
         
         /**
-         * Renders the leaderboard page with the provided sorted data.
-         * It also triggers the data fetch.
+         * Fetches all round data to calculate the overall leaderboards.
          */
-        const renderLeaderboards = (sortedPlayers = [], sortedThreePuttPlayers = []) => {
+        const fetchLeaderboardData = async () => {
             const contentDiv = document.getElementById('content');
-            
-            if (sortedPlayers.length === 0) {
-                 // Trigger the fetch if the data hasn't been provided yet
-                fetchLeaderboardData();
-                return; // Exit to let the fetch function handle the UI state
-            }
-            
-            const leaderboardsHtml = `
-                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                    <h2 class="text-2xl font-bold mb-4 text-center md:text-left">Overall Leaderboards 🏆</h2>
-                    <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
-                        <h3 class="text-xl font-bold p-3 bg-blue-800 text-white rounded-t-xl">Stableford Leaderboard</h3>
-                        <table class="min-w-full divide-y divide-gray-200 table-auto">
-                            <thead class="bg-blue-700 text-white">
-                                <tr>
-                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-blue-700">Rank</th>
-                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Total Stableford</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 1</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 2</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 3</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Round 4</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                ${sortedPlayers.map((player, index) => `
-                                    <tr class="${index % 2 === 0 ? 'bg-blue-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-blue-100 transition-colors">
-                                        <td class="p-2 whitespace-nowrap text-xs font-bold text-gray-900 sticky-col-header bg-inherit">${index + 1}</td>
-                                        <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${player.name}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-lg font-bold text-gray-700">${player.totalStableford}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[1] || 0}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[2] || 0}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[3] || 0}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-xs text-gray-500">${player.stablefordByRound[4] || 0}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+            // Check if Firebase is ready before attempting to fetch
+            if (!isFirebaseReady || !db || !currentUser || !appId) {
+                contentDiv.innerHTML = `
+                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                        <div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data. Please wait a moment and try again.</div>
                     </div>
-                    
-                    <div class="mt-8 overflow-x-auto shadow-lg rounded-xl border border-gray-300">
-                        <h3 class="text-xl font-bold p-3 bg-red-800 text-white rounded-t-xl">3-Putt Leaderboard (Snake)</h3>
-                        <table class="min-w-full divide-y divide-gray-200 table-auto">
-                            <thead class="bg-red-700 text-white">
-                                <tr>
-                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky-col-header bg-red-700">Rank</th>
-                                    <th class="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider">Player</th>
-                                    <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider">Total 3-Putts</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                ${sortedThreePuttPlayers.map((player, index) => `
-                                    <tr class="${index % 2 === 0 ? 'bg-red-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-red-100 transition-colors">
-                                        <td class="p-2 whitespace-nowrap text-xs font-bold text-gray-900 sticky-col-header bg-inherit">${index + 1}</td>
-                                        <td class="p-2 whitespace-nowrap text-xs font-medium text-gray-900">${player.name}</td>
-                                        <td class="p-2 whitespace-nowrap text-center text-lg font-bold text-gray-700">${player.totalThreePutts}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                `;
+                return;
+            }
+
+            const players = roundsData[1].players.map(p => p.name);
+            const playerTotals = players.reduce((acc, name) => {
+                acc[name] = { totalStableford: 0, stablefordByRound: {}, totalThreePutts: 0 };
+                return acc;
+            }, {});
+            
+            // Add a loading message
+            contentDiv.innerHTML = `
+                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                    <div class="text-center p-8">
+                        <svg class="animate-spin h-8 w-8 text-gray-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="mt-4 text-sm font-semibold">Loading leaderboards...</p>
                     </div>
                 </div>
             `;
-            contentDiv.innerHTML = leaderboardsHtml;
+
+
+            try {
+                // Fetch data for all 4 rounds concurrently
+                const fetchPromises = [1, 2, 3, 4].map(round => {
+                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${round}`;
+                    return getDocs(collection(db, collectionPath));
+                });
+                
+                const querySnapshots = await Promise.all(fetchPromises);
+                
+                // Process each round's data
+                querySnapshots.forEach((snapshot, index) => {
+                    const roundNumber = index + 1;
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const playerName = doc.id;
+                        if (playerTotals[playerName]) {
+                            const totalRoundStableford = calculateTotalStableford(data.stablefordPoints || []);
+                            const totalRoundThreePutts = calculateTotalThreePutts(data.threePutts || []);
+                            playerTotals[playerName].totalStableford += totalRoundStableford;
+                            playerTotals[playerName].stablefordByRound[roundNumber] = totalRoundStableford;
+                            playerTotals[playerName].totalThreePutts += totalRoundThreePutts;
+                        }
+                    });
+                });
+                
+                // Convert the object to an array for sorting
+                const sortedPlayers = Object.entries(playerTotals)
+                    .map(([name, data]) => ({
+                        name: name,
+                        totalStableford: data.totalStableford,
+                        stablefordByRound: data.stablefordByRound,
+                        totalThreePutts: data.totalThreePutts
+                    }))
+                    .sort((a, b) => b.totalStableford - a.totalStableford); // Sort by total stableford points, descending
+
+                const sortedThreePuttPlayers = [...sortedPlayers].sort((a, b) => b.totalThreePutts - a.totalThreePutts);
+                
+                renderLeaderboards(sortedPlayers, sortedThreePuttPlayers);
+
+            } catch (error) {
+                console.error("Error fetching leaderboard data:", error);
+                contentDiv.innerHTML = `
+                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
+                        <div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>
+                    </div>
+                `;
+            }
         };
 
         // --- Event Handlers ---
@@ -840,12 +890,16 @@ const firebaseConfig = {
                 return;
             }
 
+            // Show a "Saving..." message
+            showStatusMessage('Saving...', 'info');
+
             // Find the player and round details
             const playerToUpdate = playersData.find(p => p.name === playerName);
             const roundDetails = roundsData[currentRound];
             
             if (!playerToUpdate || !roundDetails) {
                 console.error("Player or round details not found.");
+                showStatusMessage('Failed to save score. Player or round details missing.', 'error');
                 return;
             }
 
@@ -896,6 +950,7 @@ const firebaseConfig = {
                 
                 await setDoc(playerDocRef, dataToMerge, { merge: true });
                 console.log(`Score updated for ${playerName} on hole ${sIndex + 1}`);
+                showStatusMessage('Saved!', 'success');
             } catch (error) {
                 console.error("Error updating document:", error);
                 showStatusMessage('Failed to save score. Try again.', 'error');
@@ -903,6 +958,7 @@ const firebaseConfig = {
         };
 
         window.handleCourseDataChange = (e) => {
+            if (isHCapRowLocked) return;
             const { holeIndex, holeType } = e.target.dataset;
             const newParOrHcap = parseInt(e.target.value);
             const index = parseInt(holeIndex);
@@ -926,6 +982,7 @@ const firebaseConfig = {
 
         // NEW function to handle changes to the player's GA Handicap
         window.handlePlayerHcapChange = async (e) => {
+            if (isGaHCapLocked) return;
             const { playerName } = e.target.dataset;
             const newAguHCap = e.target.value;
 
@@ -935,6 +992,9 @@ const firebaseConfig = {
                 return;
             }
             
+            // Show a "Saving..." message
+            showStatusMessage('Updating handicaps...', 'info');
+
             // Update the in-memory data for all rounds and recalculate daily handicaps
             for (const roundKey in roundsData) {
                 const roundDetails = roundsData[roundKey];
