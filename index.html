@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2025 Vietnam Golf Legends ⛳ Scorecard</title>
+    <title>2025 Vietnam Golf Legends Scorecard</title>
     <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
@@ -86,13 +86,29 @@
         .hole-input:focus {
             background-color: rgba(255, 255, 255, 0.2);
         }
+        /* Style for the new handicap input field */
+        .hcap-input {
+            width: 4rem; /* Adjusted width to fit the content better */
+            text-align: center;
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 0.375rem;
+            border: none;
+            outline: none;
+            font-size: 0.75rem; /* text-xs */
+            color: #1f2937; /* gray-900 */
+            padding: 0.25rem;
+            transition: background-color 0.2s;
+        }
+        .hcap-input:focus {
+            background-color: #d1d5db; /* gray-300 */
+        }
     </style>
 </head>
 <body class="flex items-center justify-center p-4">
     <div id="app-container" class="w-full max-w-7xl mx-auto rounded-2xl shadow-xl border border-gray-300 p-6 md:p-8">
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">2025 Vietnam Golf Legends ⛳</h1>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">2025 Vietnam Golf Legends</h1>
             <p class="text-xl mt-2 text-gray-700">Official Scoring Sheet</p>
             <p id="user-id-display" class="text-xs mt-2 text-gray-600"></p>
         </header>
@@ -367,6 +383,7 @@ const firebaseConfig = {
                         const fetchedPlayer = fetchedEntries[player.name];
                         return fetchedPlayer ? {
                             ...player,
+                            aguHCap: fetchedPlayer.aguHCap || player.aguHCap, // Use fetched GA handicap if it exists
                             scores: fetchedPlayer.scores || Array(18).fill(''),
                             threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
                             stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
@@ -567,7 +584,11 @@ const firebaseConfig = {
                             ${playersData.map((player, playerIndex) => `
                                 <tr class="${playerIndex % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors border-b border-gray-200">
                                     <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
-                                    <td class="p-1 text-xs md:text-sm text-center">${player.aguHCap}</td>
+                                    <!-- This is the new editable GA Handicap field -->
+                                    <td class="p-1 text-center">
+                                        <input type="text" inputmode="decimal" value="${player.aguHCap}" data-player-name="${player.name}" data-hcap-type="gaHCap"
+                                        class="hcap-input" oninput="handlePlayerHcapChange(event)">
+                                    </td>
                                     <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
                                     ${player.scores.slice(0, 9).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
@@ -628,7 +649,7 @@ const firebaseConfig = {
                 
                 <!-- 3-Putts Section -->
                 <div class="overflow-x-auto shadow-lg rounded-xl mt-8 border border-gray-300">
-                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-red-800 text-white rounded-t-xl">Three Putts 🐍</h2>
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-red-800 text-white rounded-t-xl">Three Putts ??</h2>
                     <table class="min-w-full rounded-b-xl border-collapse table-fixed">
                         <thead>
                             <tr class="bg-red-700 text-white">
@@ -700,7 +721,7 @@ const firebaseConfig = {
                 <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
                     <h2 class="text-2xl font-bold mb-4 text-center md:text-left">Overall Leaderboards</h2>
                     <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-300">
-                        <h3 class="text-xl font-bold p-3 bg-blue-800 text-white rounded-t-xl">Stableford Leaderboard🏌️‍♂️ </h3>
+                        <h3 class="text-xl font-bold p-3 bg-blue-800 text-white rounded-t-xl">Stableford Leaderboard</h3>
                         <table class="min-w-full divide-y divide-gray-200 table-auto">
                             <thead class="bg-blue-700 text-white">
                                 <tr>
@@ -848,6 +869,57 @@ const firebaseConfig = {
 
             // Re-render the scorecard to update all totals
             renderScorecard();
+        };
+
+        // NEW function to handle changes to the player's GA Handicap
+        window.handlePlayerHcapChange = async (e) => {
+            const { playerName, hcapType } = e.target.dataset;
+            const newHcap = e.target.value;
+
+            if (!db || !currentUser || !appId) {
+                console.error("Database connection not ready. Cannot save.");
+                showStatusMessage('Database not ready. GA handicap not saved.', 'error');
+                // Revert the input field value to the original data
+                e.target.value = playersData.find(p => p.name === playerName).aguHCap;
+                return;
+            }
+
+            // Find the player in the current playersData
+            const playerToUpdate = playersData.find(p => p.name === playerName);
+            if (!playerToUpdate) {
+                console.error("Player not found in data.");
+                return;
+            }
+
+            // Update the player's GA handicap in our local data store
+            if (hcapType === 'gaHCap') {
+                 // Update the GA handicap for all rounds
+                for (const round in roundsData) {
+                    const playerInRound = roundsData[round].players.find(p => p.name === playerName);
+                    if (playerInRound) {
+                        playerInRound.aguHCap = newHcap;
+                    }
+                }
+            }
+
+            // Update Firestore
+            try {
+                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                const playerDocRef = doc(db, collectionPath, playerName);
+                
+                await setDoc(playerDocRef, {
+                    aguHCap: newHcap,
+                    lastUpdated: serverTimestamp()
+                }, { merge: true });
+                console.log(`GA Handicap for ${playerName} updated to ${newHcap}`);
+
+                // Re-render the scorecard to reflect the change
+                renderScorecard();
+
+            } catch (error) {
+                console.error("Error updating document:", error);
+                showStatusMessage('Failed to save GA handicap. Try again.', 'error');
+            }
         };
 
         const renderPage = (page) => {
