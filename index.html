@@ -427,18 +427,25 @@ const firebaseConfig = {
 
                     playersData = roundsData[roundNumber].players.map(player => {
                         const fetchedPlayer = fetchedEntries[player.name];
-                        return fetchedPlayer ? {
-                            ...player,
-                            aguHCap: fetchedPlayer.aguHCap || player.aguHCap, // Use fetched GA handicap if it exists
-                            scores: fetchedPlayer.scores || Array(18).fill(''),
-                            threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
-                            stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
-                        } : {
-                            ...player,
-                            scores: Array(18).fill(''),
-                            threePutts: Array(18).fill(''),
-                            stablefordPoints: Array(18).fill('')
-                        };
+                        // If we have fetched data, use it to update the player object
+                        if (fetchedPlayer) {
+                            return {
+                                ...player,
+                                aguHCap: fetchedPlayer.aguHCap || player.aguHCap,
+                                dailyHCap: fetchedPlayer.dailyHCap || player.dailyHCap,
+                                scores: fetchedPlayer.scores || Array(18).fill(''),
+                                threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
+                                stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
+                            };
+                        } else {
+                            // If no fetched data, return the player with blank scores
+                            return {
+                                ...player,
+                                scores: Array(18).fill(''),
+                                threePutts: Array(18).fill(''),
+                                stablefordPoints: Array(18).fill('')
+                            };
+                        }
                     });
                     renderScorecard();
                     console.log("Data fetched and scorecard rendered.");
@@ -937,16 +944,15 @@ const firebaseConfig = {
                 return;
             }
 
-            // Update the player's GA handicap in our local data store for ALL rounds
+            // Update the player's GA handicap and recalculate daily handicap for ALL rounds
             if (hcapType === 'gaHCap') {
                  // Update the GA handicap for all rounds
                 for (const round in roundsData) {
-                    const playerInRound = roundsData[round].players.find(p => p.name === playerName);
+                    const roundDetails = roundsData[round];
+                    const playerInRound = roundDetails.players.find(p => p.name === playerName);
                     if (playerInRound) {
                         playerInRound.aguHCap = newHcap;
-                        
                         // Recalculate daily handicap for this player in this round using the new formula
-                        const roundDetails = roundsData[round];
                         playerInRound.dailyHCap = calculateDailyHandicap(
                             newHcap,
                             roundDetails.slope,
@@ -957,16 +963,17 @@ const firebaseConfig = {
                 }
             }
 
-            // Update Firestore
+            // Update Firestore for the current round. We now save both GA and Daily HCap.
             try {
                 const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
                 const playerDocRef = doc(db, collectionPath, playerName);
                 
                 await setDoc(playerDocRef, {
                     aguHCap: newHcap,
+                    dailyHCap: playerToUpdate.dailyHCap, // Save the newly calculated daily handicap
                     lastUpdated: serverTimestamp()
                 }, { merge: true });
-                console.log(`GA Handicap for ${playerName} updated to ${newHcap}`);
+                console.log(`GA Handicap for ${playerName} updated to ${newHcap}, and Daily Handicap updated to ${playerToUpdate.dailyHCap}.`);
 
                 // Re-render the scorecard to reflect the change
                 renderScorecard();
@@ -1211,4 +1218,3 @@ const firebaseConfig = {
     </script>
 </body>
 </html>
-
