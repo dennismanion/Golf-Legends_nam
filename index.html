@@ -561,18 +561,18 @@
             roundDetails.par = totalPar; // Update the total par
 
             const hCapLockIcon = isHCapRowLocked
-                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-1 text-red-500">
+                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-4 text-red-500">
                      <path fill-rule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3a5.25 5.25 0 00-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clip-rule="evenodd" />
                    </svg>`
-                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-1 text-green-500">
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-4 text-green-500">
                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-10.5a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25z" />
                    </svg>`;
             
             const gaHCapLockIcon = isGaHCapLocked
-                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-1 text-red-500">
+                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-4 text-red-500">
                      <path fill-rule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3a5.25 5.25 0 00-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clip-rule="evenodd" />
                    </svg>`
-                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-1 text-green-500">
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 inline-block ml-4 text-green-500">
                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-10.5a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25z" />
                    </svg>`;
                    
@@ -600,28 +600,17 @@
                 </div>
 
                 <!-- Gross Scores Table -->
-                `<div class="overflow-x-auto relative rounded-lg border border-gray-200 shadow-sm">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-200 sticky top-0 z-20">
-                                <tr class="text-sm">
-                                    <th class="p-2 text-xs font-semibold text-gray-700 uppercase tracking-wider text-left border-b-2 border-gray-300 w-32 sticky-col-header bg-gray-200 z-30">Player</th>
-                                    <!-- Lock icons are positioned here -->
-                                    <th class="pl-2 pr-6 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center border-b-2 border-gray-300 w-24 relative">
-                                        GA H/Cap
-                                        <span class="absolute top-1 right-2 text-green-500 cursor-pointer" onclick="toggleLock('gaHCap')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path id="gaHCapLockIcon" fill-rule="evenodd" d="${lockedFields['gaHCap'] ? 'M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z' : 'M5 8h10a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1zm1-3a4 4 0 00-4 4v2a1 1 0 001 1h8a1 1 0 001-1V9a4 4 0 00-4-4H6z'}" clip-rule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </th>
-                                    <th class="pl-2 pr-6 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center border-b-2 border-gray-300 w-24 relative">
-                                        Daily H/Cap
-                                        <span class="absolute top-1 right-2 text-green-500 cursor-pointer" onclick="toggleLock('dailyHCap')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path id="dailyHCapLockIcon" fill-rule="evenodd" d="${lockedFields['dailyHCap'] ? 'M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z' : 'M5 8h10a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1zm1-3a4 4 0 00-4 4v2a1 1 0 001 1h8a1 1 0 001-1V9a4 4 0 00-4-4H6z'}" clip-rule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </th>
+                <div class="overflow-x-auto shadow-lg rounded-xl mb-6 border border-gray-300">
+                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-gray-800 text-white rounded-t-xl">Gross Scores ⛳</h2>
+                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-gray-700 rounded-tl-lg text-xs md:text-sm">Player</th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm relative">
+                                    GA H/Cap
+                                    <button class="absolute top-1/2 right-1 -translate-y-1/2 p-1" onclick="toggleLock('gaHCap')">${gaHCapLockIcon}</button>
+                                </th>
+                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">Daily H/Cap</th>
                                 ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
                                 <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">In</th>
                                 ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
