@@ -157,11 +157,6 @@ const firebaseConfig = {
         const initialAuthToken = null; // No initial token for a local environment
 
         // --- Data Definitions ---
-        /**
-         * The W.H.S. formula for an 18-hole daily handicap:
-         * ((IGA Handicap x Slope Rating / 113) + (Scratch Rating minus Par)) x 0.93.
-         * The values for each player's daily handicap will be calculated using this formula.
-         */
         let roundsData = {
             1: {
                 course: 'Ba Na Hills', tees: 'white tees', slope: 133, scratch: 69.6, par: 72,
@@ -252,25 +247,31 @@ const firebaseConfig = {
         let unsubscribeFromSnapshot = null;
         let isFirebaseReady = false; // New flag to track Firebase readiness
 
+        // --- Utility Functions ---
+
         /**
-         * Calculates the daily handicap for a player based on the provided formula.
-         * The W.H.S. formula for an 18-hole daily handicap:
-         * ((IGA Handicap x Slope Rating / 113) + (Scratch Rating minus Par)) x 0.93.
-         * @param {number} aguHCap The player's Golf Australia handicap.
-         * @param {number} slope The course slope rating.
-         * @param {number} scratch The course scratch rating.
-         * @param {number} par The course par.
-         * @returns {number} The calculated daily handicap.
+         * Calculates the daily handicap for a player based on the W.H.S. formula.
+         * Formula: ((GA Handicap x Slope Rating ÷ 113) + (Scratch Rating minus Par)) x 0.93
+         * @param {string|number} gaHandicap The player's GA handicap.
+         * @param {number} slopeRating The slope rating of the course.
+         * @param {number} scratchRating The scratch rating of the course.
+         * @param {number} par The par of the course.
+         * @returns {number|null} The calculated daily handicap, rounded to two decimal places, or null if inputs are invalid.
          */
-        function calculateDailyHCap(aguHCap, slope, scratch, par) {
-            const hCap = parseFloat(aguHCap);
-            if (isNaN(hCap) || isNaN(slope) || isNaN(scratch) || isNaN(par)) {
-                return 0;
+        function calculateDailyHandicap(gaHandicap, slopeRating, scratchRating, par) {
+            const gaHCap = parseFloat(gaHandicap);
+            const slope = parseFloat(slopeRating);
+            const scratch = parseFloat(scratchRating);
+            const parValue = parseInt(par);
+
+            if (isNaN(gaHCap) || isNaN(slope) || isNaN(scratch) || isNaN(parValue)) {
+                return null;
             }
-            return ((hCap * slope / 113) + (scratch - par)) * 0.93;
+            
+            const dailyHCap = ((gaHCap * slope / 113) + (scratch - parValue)) * 0.93;
+            return Math.round(dailyHCap * 100) / 100;
         }
 
-        // --- Utility Functions ---
         function calculateInScore(scores) {
             return scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         }
@@ -328,6 +329,25 @@ const firebaseConfig = {
                 modal.classList.remove('flex');
             }, 3000);
         }
+        
+        /**
+         * Pre-calculates the daily handicap for all players across all rounds.
+         * This function is now responsible for setting the `dailyHCap` values.
+         */
+        function preCalculateDailyHandicaps() {
+            for (const round in roundsData) {
+                const roundDetails = roundsData[round];
+                roundDetails.players.forEach(player => {
+                    player.dailyHCap = calculateDailyHandicap(
+                        player.aguHCap,
+                        roundDetails.slope,
+                        roundDetails.scratch,
+                        roundDetails.par
+                    );
+                });
+            }
+        }
+
 
         // --- Firebase Initialization and Auth ---
         const initializeFirebase = async () => {
@@ -337,6 +357,7 @@ const firebaseConfig = {
                     const contentDiv = document.getElementById('content');
                     contentDiv.innerHTML = '<div class="text-center text-red-600 font-bold p-4">Warning: Firebase config is not set. Scores will not be saved.</div>';
                     // We can still render the scorecard with default data
+                    preCalculateDailyHandicaps(); // Calculate handicaps even without a DB connection
                     renderPage('scorecard');
                     return;
                 }
@@ -384,10 +405,8 @@ const firebaseConfig = {
             }
             
             // Render the scorecard with default data first
-            const roundDetails = roundsData[roundNumber];
-            playersData = roundDetails.players.map(p => ({
+            playersData = roundsData[roundNumber].players.map(p => ({
                 ...p,
-                dailyHCap: calculateDailyHCap(p.aguHCap, roundDetails.slope, roundDetails.scratch, roundDetails.par).toFixed(2),
                 scores: Array(18).fill(''),
                 threePutts: Array(18).fill(''),
                 stablefordPoints: Array(18).fill('')
@@ -404,18 +423,16 @@ const firebaseConfig = {
                         fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
                     });
 
-                    playersData = roundDetails.players.map(player => {
+                    playersData = roundsData[roundNumber].players.map(player => {
                         const fetchedPlayer = fetchedEntries[player.name];
                         return fetchedPlayer ? {
                             ...player,
                             aguHCap: fetchedPlayer.aguHCap || player.aguHCap, // Use fetched GA handicap if it exists
-                            dailyHCap: calculateDailyHCap(fetchedPlayer.aguHCap || player.aguHCap, roundDetails.slope, roundDetails.scratch, roundDetails.par).toFixed(2),
                             scores: fetchedPlayer.scores || Array(18).fill(''),
                             threePutts: fetchedPlayer.threePutts || Array(18).fill(''),
                             stablefordPoints: fetchedPlayer.stablefordPoints || Array(18).fill('')
                         } : {
                             ...player,
-                            dailyHCap: calculateDailyHCap(player.aguHCap, roundDetails.slope, roundDetails.scratch, roundDetails.par).toFixed(2),
                             scores: Array(18).fill(''),
                             threePutts: Array(18).fill(''),
                             stablefordPoints: Array(18).fill('')
@@ -732,383 +749,9 @@ const firebaseConfig = {
         };
         
         /**
-         * Fetches all round data to calculate the overall leaderboards.
+         * Renders the leaderboard page with the provided sorted data.
+         * It also triggers the data fetch.
          */
-        const fetchLeaderboardData = async () => {
-            const contentDiv = document.getElementById('content');
-            // Check if Firebase is ready before attempting to fetch
-            if (!isFirebaseReady || !db || !currentUser || !appId) {
-                contentDiv.innerHTML = `
-                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                        <div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data. Please wait a moment and try again.</div>
-                    </div>
-                `;
-                return;
-            }
-
-            const players = roundsData[1].players.map(p => p.name);
-            const playerTotals = players.reduce((acc, name) => {
-                acc[name] = { totalStableford: 0, stablefordByRound: {}, totalThreePutts: 0 };
-                return acc;
-            }, {});
-            
-            // Add a loading message
-            contentDiv.innerHTML = `
-                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                    <div class="text-center p-8">
-                        <svg class="animate-spin h-8 w-8 text-gray-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="mt-4 text-sm font-semibold">Loading leaderboards...</p>
-                    </div>
-                </div>
-            `;
-
-
-            try {
-                // Fetch data for all 4 rounds concurrently
-                const fetchPromises = [1, 2, 3, 4].map(round => {
-                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${round}`;
-                    return getDocs(collection(db, collectionPath));
-                });
-                
-                const querySnapshots = await Promise.all(fetchPromises);
-                
-                // Process each round's data
-                querySnapshots.forEach((snapshot, index) => {
-                    const roundNumber = index + 1;
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        const playerName = doc.id;
-                        if (playerTotals[playerName]) {
-                            const totalRoundStableford = calculateTotalStableford(data.stablefordPoints || []);
-                            const totalRoundThreePutts = calculateTotalThreePutts(data.threePutts || []);
-                            playerTotals[playerName].totalStableford += totalRoundStableford;
-                            playerTotals[playerName].stablefordByRound[roundNumber] = totalRoundStableford;
-                            playerTotals[playerName].totalThreePutts += totalRoundThreePutts;
-                        }
-                    });
-                });
-                
-                // Convert the object to an array for sorting
-                const sortedPlayers = Object.entries(playerTotals)
-                    .map(([name, data]) => ({
-                        name: name,
-                        totalStableford: data.totalStableford,
-                        stablefordByRound: data.stablefordByRound,
-                        totalThreePutts: data.totalThreePutts
-                    }))
-                    .sort((a, b) => b.totalStableford - a.totalStableford); // Sort by total stableford points, descending
-
-                const sortedThreePuttPlayers = [...sortedPlayers].sort((a, b) => b.totalThreePutts - a.totalThreePutts);
-                
-                renderLeaderboards(sortedPlayers, sortedThreePuttPlayers);
-
-            } catch (error) {
-                console.error("Error fetching leaderboard data:", error);
-                contentDiv.innerHTML = `
-                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                        <div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>
-                    </div>
-                `;
-            }
-        };
-
-        const renderScorecard = () => {
-            const roundDetails = roundsData[currentRound];
-            const contentDiv = document.getElementById('content');
-            
-            // Calculate total par for in and out holes
-            const inPar = roundDetails.holes.slice(0, 9).reduce((sum, h) => sum + h.par, 0);
-            const outPar = roundDetails.holes.slice(9, 18).reduce((sum, h) => sum + h.par, 0);
-            const totalPar = inPar + outPar;
-            roundDetails.par = totalPar; // Update the total par
-
-            const scorecardHtml = `
-            <div id="scorecard-wrapper">
-                <!-- Round Details -->
-                <div class="bg-white bg-opacity-70 p-4 rounded-xl shadow-inner mb-6 ring-1 ring-gray-200">
-                    <h2 class="text-xl md:text-2xl font-bold text-gray-700 mb-2">Round ${currentRound}: ${roundDetails.course}</h2>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                        <div class="flex flex-col"><span class="font-bold">Tees:</span> <span>${roundDetails.tees}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Slope Rate:</span> <span>${roundDetails.slope}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Scratch:</span> <span>${roundDetails.scratch}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Par:</span> <span>${roundDetails.par}</span></div>
-                    </div>
-                </div>
-
-                <!-- Round Selection Buttons -->
-                <div class="flex flex-wrap justify-center gap-2 mb-6 p-4 rounded-xl shadow-inner bg-gray-100 bg-opacity-70">
-                    ${[1, 2, 3, 4].map(round => `
-                        <button type="button" data-round="${round}" class="px-4 py-2 rounded-lg font-medium transition-colors shadow-md ${currentRound === round ? 'bg-gray-700 text-white' : 'bg-gray-300 text-gray-800 hover:bg-gray-400'}">
-                            Round ${round}
-                        </button>
-                    `).join('')}
-                </div>
-
-                <!-- Gross Scores Table -->
-                <div class="overflow-x-auto shadow-lg rounded-xl mb-6 border border-gray-300">
-                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-gray-800 text-white rounded-t-xl">Gross Scores</h2>
-                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
-                        <thead>
-                            <tr class="bg-gray-700 text-white">
-                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-gray-700 rounded-tl-lg text-xs md:text-sm">Player</th>
-                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">GA H/Cap</th>
-                                <th class="px-1 py-2 text-center font-semibold text-xs md:text-sm">Daily H/Cap</th>
-                                ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
-                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">In</th>
-                                ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
-                                <th class="p-1 py-2 text-center font-semibold bg-gray-800 text-xs md:text-sm">Out</th>
-                                <th class="p-1 py-2 text-center font-semibold rounded-tr-lg bg-gray-900 text-xs md:text-sm">Total</th>
-                            </tr>
-                            <tr class="bg-gray-600 text-white font-medium">
-                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600">Par</td>
-                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center"></td>
-                                ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
-                                    <td class="p-0.5 text-center">
-                                        <input type="number" inputmode="numeric" value="${hole.par}" data-hole-index="${i}" data-hole-type="par"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
-                                    </td>
-                                `).join('')}
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700">${inPar}</td>
-                                ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
-                                    <td class="p-0.5 text-center">
-                                        <input type="number" inputmode="numeric" value="${hole.par}" data-hole-index="${i + 9}" data-hole-type="par"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
-                                    </td>
-                                `).join('')}
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700">${outPar}</td>
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-800">${totalPar}</td>
-                            </tr>
-                            <tr class="bg-gray-600 text-white font-medium">
-                                <td class="p-1 py-2 text-xs md:text-sm text-center sticky-col-header bg-gray-600 rounded-bl-lg">HCap</td>
-                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center"></td>
-                                ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
-                                    <td class="p-0.5 text-center">
-                                        <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i}" data-hole-type="hcap"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
-                                    </td>
-                                `).join('')}
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
-                                ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
-                                    <td class="p-0.5 text-center">
-                                        <input type="number" inputmode="numeric" value="${hole.hcap}" data-hole-index="${i + 9}" data-hole-type="hcap"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
-                                    </td>
-                                `).join('')}
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-700"></td>
-                                <td class="p-1 py-2 text-xs md:text-sm text-center font-bold bg-gray-800 rounded-br-lg"></td>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${playersData.map((player, playerIndex) => `
-                                <tr class="${playerIndex % 2 === 0 ? 'bg-gray-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-gray-100 transition-colors border-b border-gray-200">
-                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
-                                    <!-- This is the new editable GA Handicap field -->
-                                    <td class="p-1 text-center">
-                                        <input type="text" inputmode="decimal" value="${player.aguHCap}" data-player-name="${player.name}" data-hcap-type="gaHCap"
-                                        class="hcap-input" oninput="handlePlayerHcapChange(event)">
-                                    </td>
-                                    <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
-                                    ${player.scores.slice(0, 9).map((score, scoreIndex) => `
-                                        <td class="p-0.5 text-center">
-                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-type="scores"
-                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200" oninput="handleScoreChange(event)">
-                                        </td>
-                                    `).join('')}
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateInScore(player.scores)}</td>
-                                    ${player.scores.slice(9, 18).map((score, scoreIndex) => `
-                                        <td class="p-0.5 text-center">
-                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-type="scores"
-                                            class="w-7 h-5 text-center border-none rounded-md text-xs focus:outline-none bg-gray-200" oninput="handleScoreChange(event)">
-                                        </td>
-                                    `).join('')}
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-100">${calculateOutScore(player.scores)}</td>
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-gray-200">${calculateTotalScore(player.scores)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Stableford Points Table -->
-                <div class="overflow-x-auto shadow-lg rounded-xl mt-8 mb-6 border border-gray-300">
-                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-blue-800 text-white rounded-t-xl">Stableford Points</h2>
-                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
-                        <thead>
-                            <tr class="bg-blue-700 text-white">
-                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-blue-700 rounded-tl-lg text-xs md:text-sm">Player</th>
-                                <td colspan="2" class="p-1 py-2 text-xs md:text-sm text-center font-medium"></td>
-                                ${[...Array(9)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
-                                <th class="p-1 py-2 text-center font-semibold bg-blue-800 text-xs md:text-sm">In</th>
-                                ${[...Array(9)].map((_, i) => `<th class="p-1 py-2 text-center font-semibold text-xs md:text-sm">H${i + 10}</th>`).join('')}
-                                <th class="p-1 py-2 text-center font-semibold bg-blue-800 text-xs md:text-sm">Out</th>
-                                <th class="p-1 py-2 text-center font-semibold rounded-tr-lg bg-blue-900 text-xs md:text-sm">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${playersData.map((player, playerIndex) => `
-                                <tr class="${playerIndex % 2 === 0 ? 'bg-blue-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-blue-100 transition-colors border-b border-gray-200">
-                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
-                                    <td class="p-1 text-xs md:text-sm text-center">${player.aguHCap}</td>
-                                    <td class="p-1 text-xs md:text-sm text-center">${player.dailyHCap}</td>
-                                    ${player.stablefordPoints.slice(0, 9).map((points) => `
-                                        <td class="p-1 text-xs md:text-sm text-center">${points}</td>
-                                    `).join('')}
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-100">${calculateInStableford(player.stablefordPoints)}</td>
-                                    ${player.stablefordPoints.slice(9, 18).map((points) => `
-                                        <td class="p-1 text-xs md:text-sm text-center">${points}</td>
-                                    `).join('')}
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-100">${calculateOutStableford(player.stablefordPoints)}</td>
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-blue-200">${calculateTotalStableford(player.stablefordPoints)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- 3-Putts Section -->
-                <div class="overflow-x-auto shadow-lg rounded-xl mt-8 border border-gray-300">
-                    <h2 class="text-xl md:text-2xl font-bold text-center p-3 bg-red-800 text-white rounded-t-xl">Three Putts ??</h2>
-                    <table class="min-w-full rounded-b-xl border-collapse table-fixed">
-                        <thead>
-                            <tr class="bg-red-700 text-white">
-                                <th class="p-1 py-2 text-left font-semibold sticky-col-header bg-red-700 text-xs md:text-sm">Player</th>
-                                ${[...Array(18)].map((_, i) => `<th class="p-1 text-center font-semibold text-xs md:text-sm">H${i + 1}</th>`).join('')}
-                                <th class="p-1 py-2 text-center font-semibold bg-red-800 rounded-tr-lg text-xs md:text-sm">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${playersData.map((player, playerIndex) => `
-                                <tr class="${playerIndex % 2 === 0 ? 'bg-red-50 bg-opacity-90' : 'bg-white bg-opacity-90'} hover:bg-red-100 transition-colors border-b border-gray-200">
-                                    <td class="p-1 text-xs md:text-sm font-medium text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
-                                    ${player.threePutts.map((putts, puttIndex) => `
-                                        <td class="p-0.5 text-center">
-                                            <input type="checkbox" ${putts == 1 ? 'checked' : ''} data-player-name="${player.name}" data-score-index="${puttIndex}" data-score-type="threePutts"
-                                            class="three-putt-checkbox" onchange="handleScoreChange(event)">
-                                        </td>
-                                    `).join('')}
-                                    <td class="p-1 text-xs md:text-sm text-center font-bold bg-red-100">${calculateTotalThreePutts(player.threePutts)}</td>
-                                </tr>
-                            `).join('')}
-                             <tr class="bg-red-900 text-white font-bold">
-                                <td class="px-1 text-xs md:text-sm sticky-col-header bg-red-900 rounded-bl-xl">Snake Total</td>
-                                <td colSpan="18" class="p-1 text-sm text-center"></td>
-                                <td class="p-1 text-sm text-center">${playersData.reduce((sum, player) => sum + calculateTotalThreePutts(player.threePutts), 0)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            `;
-            contentDiv.innerHTML = scorecardHtml;
-            
-            document.querySelectorAll('[data-round]').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const round = parseInt(e.target.dataset.round);
-                    currentRound = round;
-                    fetchDataForRound(round);
-                });
-            });
-
-            const scorecardBtn = document.getElementById('scorecard-btn');
-            const leaderboardsBtn = document.getElementById('leaderboards-btn');
-            const formGuideBtn = document.getElementById('form-guide-btn');
-            const rulesBtn = document.getElementById('rules-btn');
-            const groupsBtn = document.getElementById('groups-btn');
-
-            if (scorecardBtn) scorecardBtn.addEventListener('click', () => renderPage('scorecard'));
-            if (leaderboardsBtn) leaderboardsBtn.addEventListener('click', () => renderPage('leaderboards'));
-            if (formGuideBtn) formGuideBtn.addEventListener('click', () => renderPage('formGuide'));
-            if (rulesBtn) rulesBtn.addEventListener('click', () => renderPage('rules'));
-            if (groupsBtn) groupsBtn.addEventListener('click', () => renderPage('playingGroups'));
-        };
-        
-        /**
-         * Fetches all round data to calculate the overall leaderboards.
-         */
-        const fetchLeaderboardData = async () => {
-            const contentDiv = document.getElementById('content');
-            // Check if Firebase is ready before attempting to fetch
-            if (!isFirebaseReady || !db || !currentUser || !appId) {
-                contentDiv.innerHTML = `
-                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                        <div class="text-center text-red-600 font-bold p-8">Database not ready. Cannot fetch leaderboard data. Please wait a moment and try again.</div>
-                    </div>
-                `;
-                return;
-            }
-
-            const players = roundsData[1].players.map(p => p.name);
-            const playerTotals = players.reduce((acc, name) => {
-                acc[name] = { totalStableford: 0, stablefordByRound: {}, totalThreePutts: 0 };
-                return acc;
-            }, {});
-            
-            // Add a loading message
-            contentDiv.innerHTML = `
-                <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                    <div class="text-center p-8">
-                        <svg class="animate-spin h-8 w-8 text-gray-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="mt-4 text-sm font-semibold">Loading leaderboards...</p>
-                    </div>
-                </div>
-            `;
-
-
-            try {
-                // Fetch data for all 4 rounds concurrently
-                const fetchPromises = [1, 2, 3, 4].map(round => {
-                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${round}`;
-                    return getDocs(collection(db, collectionPath));
-                });
-                
-                const querySnapshots = await Promise.all(fetchPromises);
-                
-                // Process each round's data
-                querySnapshots.forEach((snapshot, index) => {
-                    const roundNumber = index + 1;
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        const playerName = doc.id;
-                        if (playerTotals[playerName]) {
-                            const totalRoundStableford = calculateTotalStableford(data.stablefordPoints || []);
-                            const totalRoundThreePutts = calculateTotalThreePutts(data.threePutts || []);
-                            playerTotals[playerName].totalStableford += totalRoundStableford;
-                            playerTotals[playerName].stablefordByRound[roundNumber] = totalRoundStableford;
-                            playerTotals[playerName].totalThreePutts += totalRoundThreePutts;
-                        }
-                    });
-                });
-                
-                // Convert the object to an array for sorting
-                const sortedPlayers = Object.entries(playerTotals)
-                    .map(([name, data]) => ({
-                        name: name,
-                        totalStableford: data.totalStableford,
-                        stablefordByRound: data.stablefordByRound,
-                        totalThreePutts: data.totalThreePutts
-                    }))
-                    .sort((a, b) => b.totalStableford - a.totalStableford); // Sort by total stableford points, descending
-
-                const sortedThreePuttPlayers = [...sortedPlayers].sort((a, b) => b.totalThreePutts - a.totalThreePutts);
-                
-                renderLeaderboards(sortedPlayers, sortedThreePuttPlayers);
-
-            } catch (error) {
-                console.error("Error fetching leaderboard data:", error);
-                contentDiv.innerHTML = `
-                    <div class="bg-white bg-opacity-70 p-6 rounded-xl shadow-inner text-gray-700">
-                        <div class="text-center text-red-600 font-bold p-8">Could not fetch leaderboard data. Please check your connection.</div>
-                    </div>
-                `;
-            }
-        };
-
         const renderLeaderboards = (sortedPlayers = [], sortedThreePuttPlayers = []) => {
             const contentDiv = document.getElementById('content');
             
@@ -1292,13 +935,22 @@ const firebaseConfig = {
                 return;
             }
 
-            // Update the player's GA handicap in our local data store
+            // Update the player's GA handicap in our local data store for ALL rounds
             if (hcapType === 'gaHCap') {
                  // Update the GA handicap for all rounds
                 for (const round in roundsData) {
                     const playerInRound = roundsData[round].players.find(p => p.name === playerName);
                     if (playerInRound) {
                         playerInRound.aguHCap = newHcap;
+                        
+                        // Recalculate daily handicap for this player in this round using the new formula
+                        const roundDetails = roundsData[round];
+                        playerInRound.dailyHCap = calculateDailyHandicap(
+                            newHcap,
+                            roundDetails.slope,
+                            roundDetails.scratch,
+                            roundDetails.par
+                        );
                     }
                 }
             }
@@ -1548,6 +1200,8 @@ const firebaseConfig = {
 
         // --- Initial Load ---
         document.addEventListener('DOMContentLoaded', () => {
+            // First, calculate all the daily handicaps based on the provided GA handicaps
+            preCalculateDailyHandicaps();
             initializeFirebase();
             renderPage('scorecard');
         });
