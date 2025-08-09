@@ -926,62 +926,54 @@ const firebaseConfig = {
 
         // NEW function to handle changes to the player's GA Handicap
         window.handlePlayerHcapChange = async (e) => {
-            const { playerName, hcapType } = e.target.dataset;
-            const newHcap = e.target.value;
+            const { playerName } = e.target.dataset;
+            const newAguHCap = e.target.value;
 
             if (!db || !currentUser || !appId) {
                 console.error("Database connection not ready. Cannot save.");
                 showStatusMessage('Database not ready. GA handicap not saved.', 'error');
-                // Revert the input field value to the original data
-                e.target.value = playersData.find(p => p.name === playerName).aguHCap;
                 return;
             }
-
-            // Find the player in the current playersData
-            const playerToUpdate = playersData.find(p => p.name === playerName);
-            if (!playerToUpdate) {
-                console.error("Player not found in data.");
-                return;
-            }
-
-            // Update the player's GA handicap and recalculate daily handicap for ALL rounds
-            if (hcapType === 'gaHCap') {
-                 // Update the GA handicap for all rounds
-                for (const round in roundsData) {
-                    const roundDetails = roundsData[round];
-                    const playerInRound = roundDetails.players.find(p => p.name === playerName);
-                    if (playerInRound) {
-                        playerInRound.aguHCap = newHcap;
-                        // Recalculate daily handicap for this player in this round using the new formula
-                        playerInRound.dailyHCap = calculateDailyHandicap(
-                            newHcap,
-                            roundDetails.slope,
-                            roundDetails.scratch,
-                            roundDetails.par
-                        );
-                    }
+            
+            // Update the in-memory data for all rounds and recalculate daily handicaps
+            for (const roundKey in roundsData) {
+                const roundDetails = roundsData[roundKey];
+                const playerInRound = roundDetails.players.find(p => p.name === playerName);
+                if (playerInRound) {
+                    playerInRound.aguHCap = newAguHCap;
+                    playerInRound.dailyHCap = calculateDailyHandicap(
+                        newAguHCap,
+                        roundDetails.slope,
+                        roundDetails.scratch,
+                        roundDetails.par
+                    );
                 }
             }
 
-            // Update Firestore for the current round. We now save both GA and Daily HCap.
-            try {
-                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                const playerDocRef = doc(db, collectionPath, playerName);
-                
-                await setDoc(playerDocRef, {
-                    aguHCap: newHcap,
-                    dailyHCap: playerToUpdate.dailyHCap, // Save the newly calculated daily handicap
-                    lastUpdated: serverTimestamp()
-                }, { merge: true });
-                console.log(`GA Handicap for ${playerName} updated to ${newHcap}, and Daily Handicap updated to ${playerToUpdate.dailyHCap}.`);
-
-                // Re-render the scorecard to reflect the change
-                renderScorecard();
-
-            } catch (error) {
-                console.error("Error updating document:", error);
-                showStatusMessage('Failed to save GA handicap. Try again.', 'error');
+            // Now, save the updated aguHCap and dailyHCap to Firestore for all rounds
+            for (const roundKey in roundsData) {
+                const roundDetails = roundsData[roundKey];
+                const playerInRound = roundDetails.players.find(p => p.name === playerName);
+                if (playerInRound) {
+                    try {
+                        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundKey}`;
+                        const playerDocRef = doc(db, collectionPath, playerName);
+                        
+                        await setDoc(playerDocRef, {
+                            aguHCap: playerInRound.aguHCap,
+                            dailyHCap: playerInRound.dailyHCap,
+                            lastUpdated: serverTimestamp()
+                        }, { merge: true });
+                    } catch (error) {
+                        console.error(`Error updating document for round ${roundKey}:`, error);
+                        showStatusMessage(`Failed to save handicap for round ${roundKey}. Try again.`, 'error');
+                    }
+                }
             }
+            
+            // Re-render the scorecard to reflect the change
+            renderScorecard();
+            showStatusMessage('Handicaps updated globally.', 'success');
         };
 
         const renderPage = (page) => {
