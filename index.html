@@ -146,7 +146,7 @@
             4: { grouping: 'Day 3 Order of merit', groups: ['1+2', '3+4', '5+6', '7+8'] }
         };
 
-        let db, auth, currentUser, currentRound = 1, playersData = [], isFetching = false, unsubscribeFromSnapshot = null;
+        let db, auth, currentUser, currentRound = 1, playersData = [], unsubscribeFromSnapshot = null;
 
         const calculateInScore = (scores) => scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         const calculateOutScore = (scores) => scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
@@ -186,19 +186,24 @@
                 });
             } catch (e) {
                 console.error("Firebase fallback:", e);
-                renderScorecard();
+                fetchDataForRound(currentRound);
             }
         };
 
         const fetchDataForRound = (roundNumber) => {
-            if (isFetching) return;
-            isFetching = true;
             if (unsubscribeFromSnapshot) unsubscribeFromSnapshot();
             
             playersData = roundsData[roundNumber].players.map(p => ({
-                ...p, scores: Array(18).fill(''), threePutts: Array(18).fill(''), stablefordPoints: Array(18).fill('')
+                ...p, 
+                scores: p.scores || Array(18).fill(''), 
+                threePutts: p.threePutts || Array(18).fill(''), 
+                stablefordPoints: p.stablefordPoints || Array(18).fill('')
             }));
             
+            // Immediately render using local memory data
+            renderScorecard();
+
+            // Perform real-time listener binding in background
             if (db && currentUser) {
                 const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
                 const q = collection(db, collectionPath);
@@ -223,14 +228,9 @@
                         } : player;
                     });
                     renderScorecard();
-                    isFetching = false;
                 }, (e) => {
-                    renderScorecard();
-                    isFetching = false;
+                    console.warn("Firestore sync warning:", e);
                 });
-            } else {
-                isFetching = false;
-                renderScorecard();
             }
         };
 
@@ -442,7 +442,6 @@
             if (activeBtn) activeBtn.className = "px-4 py-2 rounded-lg font-semibold transition-all shadow-lg bg-gray-700 text-white";
 
             if (page === 'scorecard') {
-                isFetching = false;
                 fetchDataForRound(currentRound);
             } else if (page === 'formGuide') {
                 contentDiv.innerHTML = `
