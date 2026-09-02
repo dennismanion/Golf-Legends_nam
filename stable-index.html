@@ -632,108 +632,103 @@ const firebaseConfig = {
         };
 
         // --- Event Handlers ---
-        window.handleScoreChange = async (e) => {
-            window.handleCourseMetadataChange = async (e) => {
-            const field = e.target.dataset.courseField;
-            let value = e.target.value;
+        window.handleCourseMetadataChange = async (e) => {
+    const field = e.target.dataset.courseField;
+    let value = e.target.value;
 
-            if (field === 'slope' || field === 'scratch') {
-                value = parseFloat(value) || 0;
-            }
+    if (field === 'slope' || field === 'scratch') {
+        value = parseFloat(value) || 0;
+    }
 
-            // Update in-memory state
-            roundsData[currentRound][field] = value;
+    // Update in-memory state
+    roundsData[currentRound][field] = value;
 
-            // Save to Firestore
-            if (db && currentUser && appId) {
-                try {
-                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                    const metaDocRef = doc(db, collectionPath, '_courseMetadata');
-                    await setDoc(metaDocRef, {
-                        [field]: value,
-                        lastUpdated: serverTimestamp()
-                    }, { merge: true });
-                    
-                    showStatusMessage('Course details updated!', 'success');
-                } catch (err) {
-                    console.error('Error saving course metadata:', err);
-                    showStatusMessage('Failed to save course changes.', 'error');
-                }
-            }
-        };
-            const { playerName, scoreIndex, scoreType } = e.target.dataset;
-            const sIndex = parseInt(scoreIndex);
-
-            if (!db || !currentUser || !appId) {
-                console.error("Database connection not ready. Cannot save.");
-                showStatusMessage('Database not ready. Score not saved.', 'error');
-                return;
-            }
-
-            // Find the player and round details
-            const playerToUpdate = playersData.find(p => p.name === playerName);
-            const roundDetails = roundsData[currentRound];
-            
-            if (!playerToUpdate || !roundDetails) {
-                console.error("Player or round details not found.");
-                return;
-            }
-
-            let dataToMerge = {
-                playerName: playerName,
-                aguHCap: playerToUpdate.aguHCap,
-                dailyHCap: playerToUpdate.dailyHCap,
+    // Save to Firestore
+    if (db && currentUser && appId) {
+        try {
+            const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+            const metaDocRef = doc(db, collectionPath, '_courseMetadata');
+            await setDoc(metaDocRef, {
+                [field]: value,
                 lastUpdated: serverTimestamp()
-            };
+            }, { merge: true });
+            
+            showStatusMessage('Course details updated!', 'success');
+        } catch (err) {
+            console.error('Error saving course metadata:', err);
+            showStatusMessage('Failed to save course changes.', 'error');
+        }
+    }
+};
 
-            if (scoreType === 'scores') {
-                const grossScore = parseInt(e.target.value) || '';
-                playerToUpdate.scores[sIndex] = grossScore;
-                
-                // Stableford calculation
-                const holePar = roundDetails.holes[sIndex].par;
-                const holeHCap = roundDetails.holes[sIndex].hcap;
-                const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap); // Use a whole number for stroke allocation
-                
-                let handicapStrokes = 0;
-                
-                // This logic correctly distributes handicap strokes for whole number handicaps.
-                // It assigns one stroke per hole up to 18, and then extra strokes on the hardest holes.
-                const strokesPerRound = Math.floor(dailyHCapRounded / 18);
-                const remainingStrokes = dailyHCapRounded % 18;
-                
-                if (holeHCap <= remainingStrokes) {
-                    handicapStrokes = strokesPerRound + 1;
-                } else {
-                    handicapStrokes = strokesPerRound;
-                }
+window.handleScoreChange = async (e) => {
+    const { playerName, scoreIndex, scoreType } = e.target.dataset;
+    const sIndex = parseInt(scoreIndex);
 
-                // Log the calculation for debugging
-                console.log('--- Stableford Calculation for ' + playerName + ' on Hole ' + (sIndex + 1) + ' ---');
-                console.log('Daily Handicap (Rounded):', dailyHCapRounded);
-                console.log('Hole Par:', holePar);
-                console.log('Hole Handicap:', holeHCap);
-                console.log('Gross Score:', grossScore);
-                console.log('Handicap Strokes on this hole:', handicapStrokes);
-                console.log('Net Score:', grossScore - handicapStrokes);
-                
-                const stablefordPoints = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
-                playerToUpdate.stablefordPoints[sIndex] = stablefordPoints;
-                
-                console.log('Stableford Points Awarded:', stablefordPoints);
-                console.log('--- End of Calculation ---');
+    if (!db || !currentUser || !appId) {
+        console.error("Database connection not ready. Cannot save.");
+        showStatusMessage('Database not ready. Score not saved.', 'error');
+        return;
+    }
 
-                dataToMerge.scores = playerToUpdate.scores;
-                dataToMerge.stablefordPoints = playerToUpdate.stablefordPoints;
+    // Find the player and round details
+    const playerToUpdate = playersData.find(p => p.name === playerName);
+    const roundDetails = roundsData[currentRound];
+    
+    if (!playerToUpdate || !roundDetails) {
+        console.error("Player or round details not found.");
+        return;
+    }
 
-            } else if (scoreType === 'threePutts') {
-                const value = e.target.checked ? '1' : '0';
-                playerToUpdate.threePutts[sIndex] = value;
-                dataToMerge.threePutts = playerToUpdate.threePutts;
-            }
+    let dataToMerge = {
+        playerName: playerName,
+        aguHCap: playerToUpdate.aguHCap,
+        dailyHCap: playerToUpdate.dailyHCap,
+        lastUpdated: serverTimestamp()
+    };
 
-            try {
-                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+    if (scoreType === 'scores') {
+        const grossScore = parseInt(e.target.value) || '';
+        playerToUpdate.scores[sIndex] = grossScore;
+        
+        // Stableford calculation
+        const holePar = roundDetails.holes[sIndex].par;
+        const holeHCap = roundDetails.holes[sIndex].hcap;
+        const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap);
+        
+        let handicapStrokes = 0;
+        const strokesPerRound = Math.floor(dailyHCapRounded / 18);
+        const remainingStrokes = dailyHCapRounded % 18;
+        
+        if (holeHCap <= remainingStrokes) {
+            handicapStrokes = strokesPerRound + 1;
+        } else {
+            handicapStrokes = strokesPerRound;
+        }
+
+        const stablefordPoints = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
+        playerToUpdate.stablefordPoints[sIndex] = stablefordPoints;
+
+        dataToMerge.scores = playerToUpdate.scores;
+        dataToMerge.stablefordPoints = playerToUpdate.stablefordPoints;
+
+    } else if (scoreType === 'threePutts') {
+        const value = e.target.checked ? '1' : '0';
+        playerToUpdate.threePutts[sIndex] = value;
+        dataToMerge.threePutts = playerToUpdate.threePutts;
+    }
+
+    try {
+        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+        const playerDocRef = doc(db, collectionPath, playerName);
+        
+        await setDoc(playerDocRef, dataToMerge, { merge: true });
+        console.log(`Score updated for ${playerName} on hole ${sIndex + 1}`);
+    } catch (error) {
+        console.error("Error updating document:", error);
+        showStatusMessage('Failed to save score. Try again.', 'error');
+    }
+};
                 const playerDocRef = doc(db, collectionPath, playerName);
                 
                 await setDoc(playerDocRef, dataToMerge, { merge: true });
