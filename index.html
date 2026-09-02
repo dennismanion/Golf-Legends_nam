@@ -45,7 +45,7 @@
             <button id="groups-btn" class="px-4 py-2 rounded-lg font-semibold transition-all bg-gray-200 text-gray-800 hover:bg-gray-300">Groups</button>
         </nav>
 
-        <!-- Main Content Container -->
+        <!-- Main Content View Container -->
         <main id="content" class="bg-white/80 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-xl border border-white/50 min-h-[500px]">
             <div class="flex items-center justify-center h-64 text-gray-500 font-medium">Loading Scorecard...</div>
         </main>
@@ -127,12 +127,30 @@
             }
         };
 
-        let db, auth, currentUser, currentRound = 1, playersData = [], unsubscribeFromSnapshot = null;
-        let isUserEditing = false; // Prevents snapshot listener from overwriting active inputs
+        const formGuideData = {
+            'Ben': { barrier: 1, form: '3461', odds: '$8.00', comment: '2024 winner returns for another edition of the Cup.' },
+            'Ian': { barrier: 2, form: 'x242', odds: '$5.00', comment: '2024 Hunter Valley runner up is always a consistent performer.' },
+            'Peter': { barrier: 3, form: '1275', odds: '$15.00', comment: 'Peb comes into the cup with plenty of runs.' },
+            'Neale': { barrier: 4, form: 'x445', odds: '$20.00', comment: 'Dark horse who swooped late in the Hunter.' },
+            'Neal': { barrier: 5, form: '1116', odds: '$4.00', comment: 'Proven strong stayer winning 6 cups.' },
+            'Dennis': { barrier: 6, form: '5x2x', odds: '$6.00', comment: 'The old grey war horse returns from a long spell.' },
+            'Tony': { barrier: 7, form: '20', odds: '$20.00', comment: 'First emergency-maiden starter.' },
+            'Brad': { barrier: 8, form: '6', odds: '$33.00', comment: 'Second emergency-with one Australian hit out.' }
+        };
 
-        const calculateInScore = (scores) => scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
-        const calculateOutScore = (scores) => scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
-        const calculateTotalScore = (scores) => scores.reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        const playingGroupsData = {
+            1: { grouping: 'Handicap order', groups: ['1+8', '2+7', '3+6', '4+5'] },
+            2: { grouping: 'Day 1 results', groups: ['1+8', '2+7', '3+6', '4+5'] },
+            3: { grouping: 'Handicaps-split up teams', groups: ['3+5', '4+7', '2+8', '1+6'] },
+            4: { grouping: 'Day 3 Order of merit', groups: ['1+2', '3+4', '5+6', '7+8'] }
+        };
+
+        let db, auth, currentUser, currentRound = 1, playersData = [], unsubscribeFromSnapshot = null;
+        let isUserEditing = false;
+
+        const calculateInScore = (scores) => (scores || []).slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        const calculateOutScore = (scores) => (scores || []).slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
+        const calculateTotalScore = (scores) => (scores || []).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
 
         const showStatusMessage = (message) => {
             const modal = document.getElementById('status-modal');
@@ -169,9 +187,10 @@
         const fetchDataForRound = (roundNumber) => {
             if (unsubscribeFromSnapshot) unsubscribeFromSnapshot();
             
+            // Retain scores saved in roundsData instead of wiping them out
             playersData = roundsData[roundNumber].players.map(p => ({
                 ...p, 
-                scores: p.scores || Array(18).fill('')
+                scores: p.scores ? [...p.scores] : Array(18).fill('')
             }));
             
             renderScorecard();
@@ -181,7 +200,6 @@
                 const q = collection(db, collectionPath);
                 
                 unsubscribeFromSnapshot = onSnapshot(q, (snapshot) => {
-                    // Skip rendering if user is actively typing in an input box
                     if (isUserEditing) return;
 
                     const fetched = {};
@@ -193,13 +211,20 @@
                         }
                     });
 
-                    playersData = roundsData[roundNumber].players.map(player => {
+                    // Update memory state with Firestore values
+                    roundsData[roundNumber].players.forEach((player, idx) => {
                         const pData = fetched[player.name];
-                        return pData ? {
-                            ...player,
-                            scores: pData.scores || Array(18).fill('')
-                        } : player;
+                        if (pData && pData.scores) {
+                            roundsData[roundNumber].players[idx].scores = pData.scores;
+                        } else if (!roundsData[roundNumber].players[idx].scores) {
+                            roundsData[roundNumber].players[idx].scores = Array(18).fill('');
+                        }
                     });
+
+                    playersData = roundsData[roundNumber].players.map(p => ({
+                        ...p,
+                        scores: [...p.scores]
+                    }));
                     
                     renderScorecard();
                 }, (e) => {
@@ -309,14 +334,14 @@
                                     <td class="p-2 font-bold text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
                                     <td class="p-1 text-center text-gray-500">${player.aguHCap}</td>
                                     <td class="p-1 text-center text-gray-600 font-semibold">${player.dailyHCap}</td>
-                                    ${player.scores.slice(0, 9).map((score, scoreIndex) => `
+                                    ${(player.scores || Array(18).fill('')).slice(0, 9).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
                                             <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-cell="true"
                                             class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
                                         </td>
                                     `).join('')}
                                     <td class="p-1 text-center font-bold bg-gray-100 total-in">${calculateInScore(player.scores)}</td>
-                                    ${player.scores.slice(9, 18).map((score, scoreIndex) => `
+                                    ${(player.scores || Array(18).fill('')).slice(9, 18).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
                                             <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-cell="true"
                                             class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
@@ -338,6 +363,67 @@
                     fetchDataForRound(currentRound);
                 });
             });
+        };
+
+        const renderPage = (page) => {
+            const contentDiv = document.getElementById('content');
+            if (!contentDiv) return;
+            
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.className = "px-4 py-2 rounded-lg font-semibold transition-all bg-gray-200 text-gray-800 hover:bg-gray-300";
+            });
+            
+            const activeMap = {
+                'scorecard': 'scorecard-btn',
+                'formGuide': 'form-guide-btn',
+                'rules': 'rules-btn',
+                'playingGroups': 'groups-btn'
+            };
+
+            const activeBtn = document.getElementById(activeMap[page]);
+            if (activeBtn) activeBtn.className = "px-4 py-2 rounded-lg font-semibold transition-all shadow-lg bg-gray-700 text-white";
+
+            if (page === 'scorecard') {
+                renderScorecard();
+            } else if (page === 'formGuide') {
+                contentDiv.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4">Player Form Guide</h2>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        ${Object.entries(formGuideData).map(([name, data]) => `
+                            <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-sm">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="font-bold text-lg">${name}</h3>
+                                    <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded">Odds: ${data.odds}</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-1"><strong>Form:</strong> ${data.form}</p>
+                                <p class="text-sm text-gray-700">${data.comment}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else if (page === 'rules') {
+                contentDiv.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4">Tournament Rules</h2>
+                    <ul class="list-disc pl-5 space-y-2 text-gray-700">
+                        <li>Stableford scoring format across all rounds.</li>
+                        <li>Daily handicaps calculated per venue slope/scratch rating.</li>
+                        <li>Please submit scores after completion of each hole.</li>
+                    </ul>
+                `;
+            } else if (page === 'playingGroups') {
+                const groups = playingGroupsData[currentRound];
+                contentDiv.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-2">Round ${currentRound} Groups</h2>
+                    <p class="text-sm text-gray-600 mb-4">Grouping criteria: ${groups.grouping}</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        ${groups.groups.map((g, i) => `
+                            <div class="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center font-bold text-emerald-900">
+                                Group ${i + 1}: ${g}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
         };
 
         // Input Focus Tracking
@@ -369,12 +455,19 @@
             if (target.dataset.scoreCell === "true") {
                 const playerName = target.dataset.playerName;
                 const scoreIndex = parseInt(target.dataset.scoreIndex);
-                const player = playersData.find(p => p.name === playerName);
+                
+                // Find target player in local round state
+                const roundPlayer = roundsData[currentRound].players.find(p => p.name === playerName);
+                const activePlayer = playersData.find(p => p.name === playerName);
 
-                if (!player) return;
+                if (!roundPlayer || !activePlayer) return;
 
                 const val = target.value === '' ? '' : parseInt(target.value);
-                player.scores[scoreIndex] = val;
+                
+                // Update local memory
+                if (!roundPlayer.scores) roundPlayer.scores = Array(18).fill('');
+                roundPlayer.scores[scoreIndex] = val;
+                activePlayer.scores[scoreIndex] = val;
 
                 updateCalculatedTotals(playerName);
 
@@ -382,8 +475,8 @@
                     try {
                         const docRef = doc(db, `golf-scorecards/round-${currentRound}/players`, playerName);
                         await setDoc(docRef, {
-                            playerName: player.name,
-                            scores: player.scores,
+                            playerName: playerName,
+                            scores: activePlayer.scores,
                             lastUpdated: serverTimestamp()
                         }, { merge: true });
                         showStatusMessage(`Saved ${playerName}'s score`);
@@ -397,7 +490,10 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initializeFirebase();
-            document.getElementById('scorecard-btn')?.addEventListener('click', () => renderScorecard());
+            document.getElementById('scorecard-btn')?.addEventListener('click', () => renderPage('scorecard'));
+            document.getElementById('form-guide-btn')?.addEventListener('click', () => renderPage('formGuide'));
+            document.getElementById('rules-btn')?.addEventListener('click', () => renderPage('rules'));
+            document.getElementById('groups-btn')?.addEventListener('click', () => renderPage('playingGroups'));
         });
     </script>
 </body>
