@@ -150,12 +150,6 @@
         const calculateInScore = (scores) => scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         const calculateOutScore = (scores) => scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         const calculateTotalScore = (scores) => scores.reduce((sum, score) => sum + (parseInt(score) || 0), 0);
-        
-        const calculateStablefordPoints = (grossScore, holePar, handicapStrokes) => {
-            if (!grossScore || !holePar) return 0;
-            const netScore = grossScore - (handicapStrokes || 0);
-            return Math.max(0, 2 - (netScore - holePar));
-        };
 
         const showStatusMessage = (message) => {
             const modal = document.getElementById('status-modal');
@@ -184,7 +178,7 @@
                     }
                 });
             } catch (e) {
-                console.error("Firebase fallback:", e);
+                console.error("Firebase connection error:", e);
                 fetchDataForRound(currentRound);
             }
         };
@@ -194,9 +188,7 @@
             
             playersData = roundsData[roundNumber].players.map(p => ({
                 ...p, 
-                scores: p.scores || Array(18).fill(''), 
-                threePutts: p.threePutts || Array(18).fill(''), 
-                stablefordPoints: p.stablefordPoints || Array(18).fill('')
+                scores: p.scores || Array(18).fill('')
             }));
             
             renderScorecard();
@@ -219,9 +211,7 @@
                         const pData = fetched[player.name];
                         return pData ? {
                             ...player,
-                            scores: pData.scores || Array(18).fill(''),
-                            threePutts: pData.threePutts || Array(18).fill(''),
-                            stablefordPoints: pData.stablefordPoints || Array(18).fill('')
+                            scores: pData.scores || Array(18).fill('')
                         } : player;
                     });
                     
@@ -341,14 +331,14 @@
                                     <td class="p-1 text-center text-gray-600 font-semibold">${player.dailyHCap}</td>
                                     ${player.scores.slice(0, 9).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
-                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-type="scores"
+                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-input="true"
                                             class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
                                         </td>
                                     `).join('')}
                                     <td class="p-1 text-center font-bold bg-gray-100 total-in">${calculateInScore(player.scores)}</td>
                                     ${player.scores.slice(9, 18).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
-                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-type="scores"
+                                            <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-input="true"
                                             class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
                                         </td>
                                     `).join('')}
@@ -431,11 +421,11 @@
             }
         };
 
-        // Delegated Input Handler
+        // Delegated Input Listener for Real-Time Syncing
         document.getElementById('content')?.addEventListener('input', async (e) => {
             const target = e.target;
 
-            // 1. Course Metadata Changes
+            // Course Details Change
             if (target.dataset.courseField) {
                 const field = target.dataset.courseField;
                 let value = target.value;
@@ -444,7 +434,7 @@
 
                 if (db && currentUser) {
                     try {
-                        const docRef = doc(db, `golf-scorecards/round-${currentRound}/metadata`, '_courseMetadata');
+                        const docRef = doc(db, `golf-scorecards/round-${currentRound}/players`, '_courseMetadata');
                         await setDoc(docRef, { [field]: value, lastUpdated: serverTimestamp() }, { merge: true });
                         showStatusMessage('Course info saved');
                     } catch (err) {
@@ -454,7 +444,7 @@
                 return;
             }
 
-            // 2. Par Changes
+            // Hole Par Change
             if (target.dataset.holeType === 'par') {
                 const holeIndex = parseInt(target.dataset.holeIndex);
                 const value = parseInt(target.value) || 0;
@@ -462,30 +452,16 @@
                 return;
             }
 
-            // 3. Player Score Updates
-            if (target.dataset.scoreType === 'scores') {
+            // Player Score Update
+            if (target.dataset.scoreInput === "true") {
                 const playerName = target.dataset.playerName;
                 const scoreIndex = parseInt(target.dataset.scoreIndex);
                 const playerToUpdate = playersData.find(p => p.name === playerName);
-                const roundDetails = roundsData[currentRound];
 
-                if (!playerToUpdate || !roundDetails) return;
+                if (!playerToUpdate) return;
 
-                const grossScore = target.value === '' ? '' : parseInt(target.value);
-                playerToUpdate.scores[scoreIndex] = grossScore;
-
-                if (grossScore !== '') {
-                    const holePar = roundDetails.holes[scoreIndex].par;
-                    const holeHCap = roundDetails.holes[scoreIndex].hcap;
-                    const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap);
-                    const strokesPerRound = Math.floor(dailyHCapRounded / 18);
-                    const remainingStrokes = dailyHCapRounded % 18;
-                    const handicapStrokes = (holeHCap <= remainingStrokes) ? strokesPerRound + 1 : strokesPerRound;
-
-                    playerToUpdate.stablefordPoints[scoreIndex] = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
-                } else {
-                    playerToUpdate.stablefordPoints[scoreIndex] = '';
-                }
+                const value = target.value === '' ? '' : parseInt(target.value);
+                playerToUpdate.scores[scoreIndex] = value;
 
                 updateCalculatedTotals(playerName);
 
@@ -495,7 +471,6 @@
                         await setDoc(docRef, {
                             playerName,
                             scores: playerToUpdate.scores,
-                            stablefordPoints: playerToUpdate.stablefordPoints,
                             lastUpdated: serverTimestamp()
                         }, { merge: true });
                         showStatusMessage(`Saved ${playerName}'s score`);
