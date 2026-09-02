@@ -729,14 +729,7 @@ window.handleScoreChange = async (e) => {
         showStatusMessage('Failed to save score. Try again.', 'error');
     }
 };
-                const playerDocRef = doc(db, collectionPath, playerName);
-                
-                await setDoc(playerDocRef, dataToMerge, { merge: true });
-                console.log(`Score updated for ${playerName} on hole ${sIndex + 1}`);
-            } catch (error) {
-                console.error("Error updating document:", error);
-                showStatusMessage('Failed to save score. Try again.', 'error');
-            }
+              
         };
 
         window.handleCourseDataChange = (e) => {
