@@ -71,7 +71,6 @@
             appId: "1:301146578542:web:1e7515a3ab3c84fd5c507f",
             measurementId: "G-48RGNE7JVN"
         };
-        const appId = firebaseConfig.appId;
 
         let roundsData = {
             1: {
@@ -203,7 +202,7 @@
             renderScorecard();
 
             if (db && currentUser) {
-                const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
+                const collectionPath = `golf-scorecards/round-${roundNumber}/players`;
                 const q = collection(db, collectionPath);
                 
                 unsubscribeFromSnapshot = onSnapshot(q, (snapshot) => {
@@ -445,8 +444,8 @@
 
                 if (db && currentUser) {
                     try {
-                        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                        await setDoc(doc(db, collectionPath, '_courseMetadata'), { [field]: value, lastUpdated: serverTimestamp() }, { merge: true });
+                        const docRef = doc(db, `golf-scorecards/round-${currentRound}/metadata`, '_courseMetadata');
+                        await setDoc(docRef, { [field]: value, lastUpdated: serverTimestamp() }, { merge: true });
                         showStatusMessage('Course info saved');
                     } catch (err) {
                         console.error('Course save error:', err);
@@ -492,8 +491,8 @@
 
                 if (db && currentUser) {
                     try {
-                        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                        await setDoc(doc(db, collectionPath, playerName), {
+                        const docRef = doc(db, `golf-scorecards/round-${currentRound}/players`, playerName);
+                        await setDoc(docRef, {
                             playerName,
                             scores: playerToUpdate.scores,
                             stablefordPoints: playerToUpdate.stablefordPoints,
