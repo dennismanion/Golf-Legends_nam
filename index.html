@@ -82,9 +82,9 @@
                 ],
                 players: [
                     { name: 'Ben', aguHCap: '19.9', dailyHCap: 19.55 }, { name: 'Ian', aguHCap: '16.9', dailyHCap: 16.27 },
-                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.49 }, { name: 'Q', aguHCap: '10', dailyHCap: 28.20 },
+                    { name: 'Peter', aguHCap: '23.5', dailyHCap: 23.49 }, { name: 'Neale', aguHCap: '27.8', dailyHCap: 28.20 },
                     { name: 'Neal', aguHCap: '7.1', dailyHCap: 5.54 }, { name: 'Dennis', aguHCap: '14.3', dailyHCap: 13.42 },
-                    { name: 'TK', aguHCap: '10', dailyHCap: 30.39 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.70 }
+                    { name: 'Tony', aguHCap: '29.8', dailyHCap: 30.39 }, { name: 'Brad', aguHCap: '31', dailyHCap: 31.70 }
                 ]
             },
             2: {
@@ -200,10 +200,8 @@
                 stablefordPoints: p.stablefordPoints || Array(18).fill('')
             }));
             
-            // Immediately render using local memory data
             renderScorecard();
 
-            // Perform real-time listener binding in background
             if (db && currentUser) {
                 const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${roundNumber}`;
                 const q = collection(db, collectionPath);
@@ -227,11 +225,34 @@
                             stablefordPoints: pData.stablefordPoints || Array(18).fill('')
                         } : player;
                     });
-                    renderScorecard();
+                    
+                    if (document.activeElement.tagName !== 'INPUT') {
+                        renderScorecard();
+                    }
                 }, (e) => {
                     console.warn("Firestore sync warning:", e);
                 });
             }
+        };
+
+        const updateCalculatedTotals = (playerName) => {
+            const player = playersData.find(p => p.name === playerName);
+            if (!player) return;
+
+            const row = document.querySelector(`tr[data-player-row="${playerName}"]`);
+            if (!row) return;
+
+            const inScore = calculateInScore(player.scores);
+            const outScore = calculateOutScore(player.scores);
+            const totalScore = calculateTotalScore(player.scores);
+
+            const inTd = row.querySelector('.total-in');
+            const outTd = row.querySelector('.total-out');
+            const totalTd = row.querySelector('.total-grand');
+
+            if (inTd) inTd.textContent = inScore || 0;
+            if (outTd) outTd.textContent = outScore || 0;
+            if (totalTd) totalTd.textContent = totalScore || 0;
         };
 
         const renderScorecard = () => {
@@ -249,27 +270,23 @@
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <h2 class="text-xl md:text-2xl font-bold">Round ${currentRound}:</h2>
                         <input type="text" value="${roundDetails.course}" data-course-field="course" 
-                            class="text-xl md:text-2xl font-bold bg-white/10 border border-white/20 rounded px-2 py-0.5 text-white focus:bg-white focus:text-gray-900 focus:outline-none" 
-                            onchange="handleCourseMetadataChange(event)">
+                            class="text-xl md:text-2xl font-bold bg-white/10 border border-white/20 rounded px-2 py-0.5 text-white focus:bg-white focus:text-gray-900 focus:outline-none">
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div class="flex flex-col font-bold">
                             <span class="text-emerald-200">Tees:</span>
                             <input type="text" value="${roundDetails.tees}" data-course-field="tees" 
-                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none" 
-                                onchange="handleCourseMetadataChange(event)">
+                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none">
                         </div>
                         <div class="flex flex-col font-bold">
                             <span class="text-emerald-200">Slope Rate:</span>
                             <input type="number" step="any" value="${roundDetails.slope}" data-course-field="slope" 
-                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none" 
-                                onchange="handleCourseMetadataChange(event)">
+                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none">
                         </div>
                         <div class="flex flex-col font-bold">
                             <span class="text-emerald-200">Scratch:</span>
                             <input type="number" step="any" value="${roundDetails.scratch}" data-course-field="scratch" 
-                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none" 
-                                onchange="handleCourseMetadataChange(event)">
+                                class="font-normal bg-white/10 border border-white/20 rounded px-2 py-1 text-white focus:bg-white focus:text-gray-900 focus:outline-none">
                         </div>
                         <div class="flex flex-col font-bold">
                             <span class="text-emerald-200">Par:</span>
@@ -304,15 +321,13 @@
                                 <td colspan="2" class="p-1 text-center"></td>
                                 ${roundsData[currentRound].holes.slice(0, 9).map((hole, i) => `
                                     <td class="p-0.5 text-center">
-                                        <input type="number" value="${hole.par}" data-hole-index="${i}" data-hole-type="par"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                        <input type="number" value="${hole.par}" data-hole-index="${i}" data-hole-type="par" class="hole-input">
                                     </td>
                                 `).join('')}
                                 <td class="p-1 text-center font-bold bg-gray-800">${inPar}</td>
                                 ${roundsData[currentRound].holes.slice(9, 18).map((hole, i) => `
                                     <td class="p-0.5 text-center">
-                                        <input type="number" value="${hole.par}" data-hole-index="${i + 9}" data-hole-type="par"
-                                        class="hole-input" oninput="handleCourseDataChange(event)">
+                                        <input type="number" value="${hole.par}" data-hole-index="${i + 9}" data-hole-type="par" class="hole-input">
                                     </td>
                                 `).join('')}
                                 <td class="p-1 text-center font-bold bg-gray-800">${outPar}</td>
@@ -321,25 +336,25 @@
                         </thead>
                         <tbody>
                             ${playersData.map((player, playerIndex) => `
-                                <tr class="${playerIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'} border-b border-gray-200">
+                                <tr data-player-row="${player.name}" class="${playerIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'} border-b border-gray-200">
                                     <td class="p-2 font-bold text-gray-800 sticky-col-header bg-inherit">${player.name}</td>
                                     <td class="p-1 text-center text-gray-500">${player.aguHCap}</td>
                                     <td class="p-1 text-center text-gray-600 font-semibold">${player.dailyHCap}</td>
                                     ${player.scores.slice(0, 9).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
                                             <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex}" data-score-type="scores"
-                                            class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium" oninput="handleScoreChange(event)">
+                                            class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
                                         </td>
                                     `).join('')}
-                                    <td class="p-1 text-center font-bold bg-gray-100">${calculateInScore(player.scores)}</td>
+                                    <td class="p-1 text-center font-bold bg-gray-100 total-in">${calculateInScore(player.scores)}</td>
                                     ${player.scores.slice(9, 18).map((score, scoreIndex) => `
                                         <td class="p-0.5 text-center">
                                             <input type="number" inputmode="numeric" value="${score}" data-player-name="${player.name}" data-score-index="${scoreIndex + 9}" data-score-type="scores"
-                                            class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium" oninput="handleScoreChange(event)">
+                                            class="w-7 h-6 text-center border border-gray-300 rounded focus:border-emerald-500 focus:outline-none bg-white font-medium">
                                         </td>
                                     `).join('')}
-                                    <td class="p-1 text-center font-bold bg-gray-100">${calculateOutScore(player.scores)}</td>
-                                    <td class="p-1 text-center font-bold bg-emerald-100 text-emerald-900">${calculateTotalScore(player.scores)}</td>
+                                    <td class="p-1 text-center font-bold bg-gray-100 total-out">${calculateOutScore(player.scores)}</td>
+                                    <td class="p-1 text-center font-bold bg-emerald-100 text-emerald-900 total-grand">${calculateTotalScore(player.scores)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -354,73 +369,6 @@
                     fetchDataForRound(currentRound);
                 });
             });
-        };
-
-        window.handleCourseMetadataChange = async (e) => {
-            const field = e.target.dataset.courseField;
-            let value = e.target.value;
-            if (field === 'slope' || field === 'scratch') value = parseFloat(value) || 0;
-
-            roundsData[currentRound][field] = value;
-
-            if (db && currentUser) {
-                try {
-                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                    await setDoc(doc(db, collectionPath, '_courseMetadata'), { [field]: value, lastUpdated: serverTimestamp() }, { merge: true });
-                    showStatusMessage('Course info saved!');
-                } catch (err) {
-                    console.error('Save error:', err);
-                }
-            }
-        };
-
-        window.handleScoreChange = async (e) => {
-            const { playerName, scoreIndex } = e.target.dataset;
-            const sIndex = parseInt(scoreIndex);
-            const playerToUpdate = playersData.find(p => p.name === playerName);
-            const roundDetails = roundsData[currentRound];
-            
-            if (!playerToUpdate || !roundDetails) return;
-
-            const grossScore = parseInt(e.target.value) || '';
-            playerToUpdate.scores[sIndex] = grossScore;
-            
-            const holePar = roundDetails.holes[sIndex].par;
-            const holeHCap = roundDetails.holes[sIndex].hcap;
-            const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap);
-            
-            const strokesPerRound = Math.floor(dailyHCapRounded / 18);
-            const remainingStrokes = dailyHCapRounded % 18;
-            const handicapStrokes = (holeHCap <= remainingStrokes) ? strokesPerRound + 1 : strokesPerRound;
-
-            playerToUpdate.stablefordPoints[sIndex] = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
-
-            renderScorecard();
-
-            if (db && currentUser) {
-                try {
-                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
-                    await setDoc(doc(db, collectionPath, playerName), {
-                        playerName,
-                        scores: playerToUpdate.scores,
-                        stablefordPoints: playerToUpdate.stablefordPoints,
-                        lastUpdated: serverTimestamp()
-                    }, { merge: true });
-                    showStatusMessage('Score updated');
-                } catch (error) {
-                    console.error("Score save error:", error);
-                }
-            }
-        };
-
-        window.handleCourseDataChange = (e) => {
-            const { holeIndex, holeType } = e.target.dataset;
-            const value = parseInt(e.target.value);
-            const index = parseInt(holeIndex);
-            if (isNaN(value)) return;
-
-            if (holeType === 'par') roundsData[currentRound].holes[index].par = value;
-            renderScorecard();
         };
 
         const renderPage = (page) => {
@@ -484,7 +432,81 @@
             }
         };
 
-        window.renderPage = renderPage;
+        // Delegated Input Handler
+        document.getElementById('content')?.addEventListener('input', async (e) => {
+            const target = e.target;
+
+            // 1. Course Metadata Changes
+            if (target.dataset.courseField) {
+                const field = target.dataset.courseField;
+                let value = target.value;
+                if (field === 'slope' || field === 'scratch') value = parseFloat(value) || 0;
+                roundsData[currentRound][field] = value;
+
+                if (db && currentUser) {
+                    try {
+                        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                        await setDoc(doc(db, collectionPath, '_courseMetadata'), { [field]: value, lastUpdated: serverTimestamp() }, { merge: true });
+                        showStatusMessage('Course info saved');
+                    } catch (err) {
+                        console.error('Course save error:', err);
+                    }
+                }
+                return;
+            }
+
+            // 2. Par Changes
+            if (target.dataset.holeType === 'par') {
+                const holeIndex = parseInt(target.dataset.holeIndex);
+                const value = parseInt(target.value) || 0;
+                roundsData[currentRound].holes[holeIndex].par = value;
+                return;
+            }
+
+            // 3. Player Score Updates
+            if (target.dataset.scoreType === 'scores') {
+                const playerName = target.dataset.playerName;
+                const scoreIndex = parseInt(target.dataset.scoreIndex);
+                const playerToUpdate = playersData.find(p => p.name === playerName);
+                const roundDetails = roundsData[currentRound];
+
+                if (!playerToUpdate || !roundDetails) return;
+
+                const grossScore = target.value === '' ? '' : parseInt(target.value);
+                playerToUpdate.scores[scoreIndex] = grossScore;
+
+                if (grossScore !== '') {
+                    const holePar = roundDetails.holes[scoreIndex].par;
+                    const holeHCap = roundDetails.holes[scoreIndex].hcap;
+                    const dailyHCapRounded = Math.round(playerToUpdate.dailyHCap);
+                    const strokesPerRound = Math.floor(dailyHCapRounded / 18);
+                    const remainingStrokes = dailyHCapRounded % 18;
+                    const handicapStrokes = (holeHCap <= remainingStrokes) ? strokesPerRound + 1 : strokesPerRound;
+
+                    playerToUpdate.stablefordPoints[scoreIndex] = calculateStablefordPoints(grossScore, holePar, handicapStrokes);
+                } else {
+                    playerToUpdate.stablefordPoints[scoreIndex] = '';
+                }
+
+                updateCalculatedTotals(playerName);
+
+                if (db && currentUser) {
+                    try {
+                        const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                        await setDoc(doc(db, collectionPath, playerName), {
+                            playerName,
+                            scores: playerToUpdate.scores,
+                            stablefordPoints: playerToUpdate.stablefordPoints,
+                            lastUpdated: serverTimestamp()
+                        }, { merge: true });
+                        showStatusMessage(`Saved ${playerName}'s score`);
+                    } catch (error) {
+                        console.error("Score save error:", error);
+                        showStatusMessage("Error saving score!");
+                    }
+                }
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             initializeFirebase();
