@@ -357,8 +357,10 @@ const firebaseConfig = {
                 unsubscribeFromSnapshot = onSnapshot(q, (querySnapshot) => {
                     const fetchedEntries = {};
                     querySnapshot.forEach((doc) => {
-                        fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
-                    });
+    if (doc.id !== '_courseMetadata') {
+        fetchedEntries[doc.id] = { id: doc.id, ...doc.data() };
+    }
+});
 
                     playersData = roundsData[roundNumber].players.map(player => {
                         const fetchedPlayer = fetchedEntries[player.name];
@@ -384,6 +386,18 @@ const firebaseConfig = {
                     isFetching = false;
                     unsubscribeFromSnapshot();
                 });
+                // Fetch saved course metadata from Firestore
+                const metaDocRef = doc(db, collectionPath, '_courseMetadata');
+                onSnapshot(metaDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const meta = docSnap.data();
+                        if (meta.course) roundsData[roundNumber].course = meta.course;
+                        if (meta.tees) roundsData[roundNumber].tees = meta.tees;
+                        if (meta.slope) roundsData[roundNumber].slope = meta.slope;
+                        if (meta.scratch) roundsData[roundNumber].scratch = meta.scratch;
+                        renderScorecard();
+                    }
+                });
             } else {
                 isFetching = false;
                 console.log("Firebase not ready. Displaying default scores.");
@@ -402,14 +416,37 @@ const firebaseConfig = {
 
             const scorecardHtml = `
             <div id="scorecard-wrapper">
-                <!-- Round Details -->
+               <!-- Editable Round Details -->
                 <div class="bg-white bg-opacity-70 p-4 rounded-xl shadow-inner mb-6 ring-1 ring-gray-200">
-                    <h2 class="text-xl md:text-2xl font-bold text-gray-700 mb-2">Round ${currentRound}: ${roundDetails.course}</h2>
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <h2 class="text-xl md:text-2xl font-bold text-gray-700">Round ${currentRound}:</h2>
+                        <input type="text" value="${roundDetails.course}" data-course-field="course" 
+                            class="text-xl md:text-2xl font-bold text-gray-800 bg-white/60 border border-gray-300 rounded px-2 py-0.5 focus:bg-white focus:outline-none" 
+                            onchange="handleCourseMetadataChange(event)">
+                    </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                        <div class="flex flex-col"><span class="font-bold">Tees:</span> <span>${roundDetails.tees}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Slope Rate:</span> <span>${roundDetails.slope}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Scratch:</span> <span>${roundDetails.scratch}</span></div>
-                        <div class="flex flex-col"><span class="font-bold">Par:</span> <span>${roundDetails.par}</span></div>
+                        <div class="flex flex-col font-bold">
+                            <span>Tees:</span>
+                            <input type="text" value="${roundDetails.tees}" data-course-field="tees" 
+                                class="font-normal text-gray-800 bg-white/60 border border-gray-300 rounded px-2 py-1 focus:bg-white focus:outline-none" 
+                                onchange="handleCourseMetadataChange(event)">
+                        </div>
+                        <div class="flex flex-col font-bold">
+                            <span>Slope Rate:</span>
+                            <input type="number" step="any" value="${roundDetails.slope}" data-course-field="slope" 
+                                class="font-normal text-gray-800 bg-white/60 border border-gray-300 rounded px-2 py-1 focus:bg-white focus:outline-none" 
+                                onchange="handleCourseMetadataChange(event)">
+                        </div>
+                        <div class="flex flex-col font-bold">
+                            <span>Scratch:</span>
+                            <input type="number" step="any" value="${roundDetails.scratch}" data-course-field="scratch" 
+                                class="font-normal text-gray-800 bg-white/60 border border-gray-300 rounded px-2 py-1 focus:bg-white focus:outline-none" 
+                                onchange="handleCourseMetadataChange(event)">
+                        </div>
+                        <div class="flex flex-col font-bold">
+                            <span>Par:</span>
+                            <span class="font-normal text-gray-800 py-1">${roundDetails.par}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -596,6 +633,34 @@ const firebaseConfig = {
 
         // --- Event Handlers ---
         window.handleScoreChange = async (e) => {
+            window.handleCourseMetadataChange = async (e) => {
+            const field = e.target.dataset.courseField;
+            let value = e.target.value;
+
+            if (field === 'slope' || field === 'scratch') {
+                value = parseFloat(value) || 0;
+            }
+
+            // Update in-memory state
+            roundsData[currentRound][field] = value;
+
+            // Save to Firestore
+            if (db && currentUser && appId) {
+                try {
+                    const collectionPath = `artifacts/${appId}/public/data/golf-scorecard-r${currentRound}`;
+                    const metaDocRef = doc(db, collectionPath, '_courseMetadata');
+                    await setDoc(metaDocRef, {
+                        [field]: value,
+                        lastUpdated: serverTimestamp()
+                    }, { merge: true });
+                    
+                    showStatusMessage('Course details updated!', 'success');
+                } catch (err) {
+                    console.error('Error saving course metadata:', err);
+                    showStatusMessage('Failed to save course changes.', 'error');
+                }
+            }
+        };
             const { playerName, scoreIndex, scoreType } = e.target.dataset;
             const sIndex = parseInt(scoreIndex);
 
