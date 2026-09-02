@@ -59,10 +59,9 @@
     <!-- Firebase SDK Imports & Application Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, setDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyAuErizAOC5FCAVyNb-KfAlmqpoHqhflHQ",
             authDomain: "interactive-golf-scorecard-app.firebaseapp.com",
@@ -74,7 +73,6 @@
         };
         const appId = firebaseConfig.appId;
 
-        // Data Definitions
         let roundsData = {
             1: {
                 course: 'Ba Na Hills', tees: 'white tees', slope: 133, scratch: 69.6, par: 72,
@@ -150,7 +148,6 @@
 
         let db, auth, currentUser, currentRound = 1, playersData = [], isFetching = false, unsubscribeFromSnapshot = null;
 
-        // Calculations & Helpers
         const calculateInScore = (scores) => scores.slice(0, 9).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         const calculateOutScore = (scores) => scores.slice(9, 18).reduce((sum, score) => sum + (parseInt(score) || 0), 0);
         const calculateTotalScore = (scores) => scores.reduce((sum, score) => sum + (parseInt(score) || 0), 0);
@@ -171,7 +168,6 @@
             setTimeout(() => modal.classList.add('hidden'), 2500);
         };
 
-        // Initialize Firebase
         const initializeFirebase = async () => {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -189,12 +185,11 @@
                     }
                 });
             } catch (e) {
-                console.error("Firebase connection fallback:", e);
+                console.error("Firebase fallback:", e);
                 renderScorecard();
             }
         };
 
-        // Data Sync
         const fetchDataForRound = (roundNumber) => {
             if (isFetching) return;
             isFetching = true;
@@ -239,7 +234,6 @@
             }
         };
 
-        // Render Views
         const renderScorecard = () => {
             const roundDetails = roundsData[currentRound];
             const contentDiv = document.getElementById('content');
@@ -251,7 +245,6 @@
 
             contentDiv.innerHTML = `
             <div id="scorecard-wrapper">
-                <!-- Editable Course Header Card -->
                 <div class="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-4 rounded-xl shadow-lg mb-6">
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <h2 class="text-xl md:text-2xl font-bold">Round ${currentRound}:</h2>
@@ -285,7 +278,6 @@
                     </div>
                 </div>
 
-                <!-- Round Switcher Buttons -->
                 <div class="flex flex-wrap justify-center gap-2 mb-6 p-2 rounded-xl bg-gray-100">
                     ${[1, 2, 3, 4].map(round => `
                         <button type="button" data-round="${round}" class="px-4 py-2 rounded-lg font-medium transition-colors shadow-sm ${currentRound === round ? 'bg-emerald-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}">
@@ -294,7 +286,6 @@
                     `).join('')}
                 </div>
 
-                <!-- Main Scorecard Table -->
                 <div class="overflow-x-auto shadow-xl rounded-xl border border-gray-200">
                     <table class="min-w-full border-collapse text-xs md:text-sm">
                         <thead>
@@ -365,7 +356,6 @@
             });
         };
 
-        // Handlers
         window.handleCourseMetadataChange = async (e) => {
             const field = e.target.dataset.courseField;
             let value = e.target.value;
@@ -440,10 +430,19 @@
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.className = "px-4 py-2 rounded-lg font-semibold transition-all bg-gray-200 text-gray-800 hover:bg-gray-300";
             });
-            const activeBtn = document.getElementById(`${page}-btn`);
+            
+            const activeMap = {
+                'scorecard': 'scorecard-btn',
+                'formGuide': 'form-guide-btn',
+                'rules': 'rules-btn',
+                'playingGroups': 'groups-btn'
+            };
+
+            const activeBtn = document.getElementById(activeMap[page]);
             if (activeBtn) activeBtn.className = "px-4 py-2 rounded-lg font-semibold transition-all shadow-lg bg-gray-700 text-white";
 
             if (page === 'scorecard') {
+                isFetching = false;
                 fetchDataForRound(currentRound);
             } else if (page === 'formGuide') {
                 contentDiv.innerHTML = `
@@ -486,7 +485,8 @@
             }
         };
 
-        // DOM Listeners
+        window.renderPage = renderPage;
+
         document.addEventListener('DOMContentLoaded', () => {
             initializeFirebase();
             document.getElementById('scorecard-btn')?.addEventListener('click', () => renderPage('scorecard'));
